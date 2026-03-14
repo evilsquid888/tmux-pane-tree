@@ -26,12 +26,13 @@ output="$(python3 scripts/sidebar-ui.py --dump-render 2>&1)"
 
 assert_contains "$output" '├─ work'
 assert_contains "$output" '│     └─ claude'
-assert_contains "$output" '▶ │     └─ tail'
+assert_contains "$output" '▶       └─ tail'
 case "$output" in
   *'%99 Sidebar'* ) fail "sidebar pane should be hidden when window has other panes" ;;
 esac
-assert_contains "$output" '└─ solo'
-assert_contains "$output" 'python3'
+case "$output" in
+  *'└─ solo'* ) fail "sidebar-only sessions should be hidden from the mirrored tree" ;;
+esac
 
 fake_tmux_set_tree <<'EOF'
 work|@1|editor|%1|nvim|shell|0

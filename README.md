@@ -19,7 +19,7 @@ It is designed for agent-heavy tmux workflows, with hook-driven badges for
 - Keep the sidebar full-height on the left side of the window
 - Navigate inside the sidebar and jump to a selected pane
 - Show per-pane agent badges for `running`, `needs-input`, `done`, and `error`
-- Clear transient notifications when you focus the pane
+- Clear `done` and `needs-input` notifications when you focus the pane
 
 ## Install
 
@@ -66,6 +66,8 @@ tmux source-file ~/.tmux.conf
 - `Enter` jumps to the selected pane
 - `aw` prompts for a name and adds a window after the selected pane's window
 - `as` prompts for a name and adds a session after the selected pane's session
+- `x` closes the selected pane
+- `q` closes the sidebar
 - `Ctrl+l` leaves the sidebar and returns focus to the main pane
 
 ## Configuration
@@ -89,20 +91,25 @@ pane:
 set -g @tmux_sidebar_focus_on_open 0
 ```
 
-The add shortcuts default to `aw` for windows and `as` for sessions.
+The sidebar shortcuts default to `aw` for windows, `as` for sessions, and `x`
+for closing the selected pane.
 
 Set custom shortcuts in your tmux config:
 
 ```tmux
 set -g @tmux_sidebar_add_window_shortcut zw
 set -g @tmux_sidebar_add_session_shortcut zs
+set -g @tmux_sidebar_close_pane_shortcut dd
 ```
 
-Each shortcut must be exactly two characters. If a configured value is invalid
-or duplicates the other shortcut, the sidebar falls back to the defaults.
+Each shortcut can be any non-empty key sequence. If the configured shortcut map
+is invalid, including empty values, duplicates, ambiguous prefix overlaps, or
+any shortcut containing reserved `q`, the sidebar falls back to the defaults.
 
-Both actions use tmux's built-in prompt for naming and create the new object
-relative to the pane row currently selected in the sidebar.
+The add actions use tmux's built-in prompt for naming and create the new
+object relative to the pane row currently selected in the sidebar. Closing the
+selected pane uses `tmux kill-pane`, so tmux applies its normal cascade: the
+last pane removes the window and the last window removes the session.
 
 ## Hook Integration
 

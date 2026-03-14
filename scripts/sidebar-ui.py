@@ -18,6 +18,7 @@ DEFAULT_SIDEBAR_WIDTH = 25
 DEFAULT_SHORTCUTS = {
     "add_window": "aw",
     "add_session": "as",
+    "close_pane": "x",
 }
 SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 NON_AGENT_COMMANDS = {
@@ -78,11 +79,26 @@ def configured_sidebar_width() -> int:
 
 
 def configured_shortcuts() -> dict[str, str]:
-    shortcuts = {
-        "add_window": tmux_option("@tmux_sidebar_add_window_shortcut").strip() or DEFAULT_SHORTCUTS["add_window"],
-        "add_session": tmux_option("@tmux_sidebar_add_session_shortcut").strip() or DEFAULT_SHORTCUTS["add_session"],
-    }
-    if any(len(shortcut) != 2 for shortcut in shortcuts.values()) or len(set(shortcuts.values())) != len(shortcuts):
+    shortcuts: dict[str, str] = {}
+    for action, default_shortcut in DEFAULT_SHORTCUTS.items():
+        try:
+            shortcut = run_tmux("show-options", "-gv", f"@tmux_sidebar_{action}_shortcut").strip()
+        except subprocess.CalledProcessError:
+            shortcuts[action] = default_shortcut
+            continue
+        if not shortcut:
+            return dict(DEFAULT_SHORTCUTS)
+        shortcuts[action] = shortcut
+    shortcut_values = list(shortcuts.values())
+    if any("q" in shortcut for shortcut in shortcut_values):
+        return dict(DEFAULT_SHORTCUTS)
+    if len(set(shortcut_values)) != len(shortcuts):
+        return dict(DEFAULT_SHORTCUTS)
+    if any(
+        shortcut != other_shortcut and other_shortcut.startswith(shortcut)
+        for shortcut in shortcut_values
+        for other_shortcut in shortcut_values
+    ):
         return dict(DEFAULT_SHORTCUTS)
     return shortcuts
 
@@ -248,11 +264,17 @@ def load_tree() -> list[dict]:
             }
         )
 
-    for session in sessions.values():
-        for window in session["windows"].values():
-            has_non_sidebar = any(pane["title"] not in SIDEBAR_TITLES for pane in window["panes"])
-            if has_non_sidebar:
-                window["panes"] = [pane for pane in window["panes"] if pane["title"] not in SIDEBAR_TITLES]
+    filtered_sessions: OrderedDict[str, dict] = OrderedDict()
+    for session_name, session in sessions.items():
+        filtered_windows: OrderedDict[str, dict] = OrderedDict()
+        for window_id, window in session["windows"].items():
+            panes = [pane for pane in window["panes"] if pane["title"] not in SIDEBAR_TITLES]
+            if not panes:
+                continue
+            filtered_windows[window_id] = {**window, "panes": panes}
+        if filtered_windows:
+            filtered_sessions[session_name] = {**session, "windows": filtered_windows}
+    sessions = filtered_sessions
 
     pane_states: dict[str, dict] = {}
     STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -360,13 +382,18 @@ def close_sidebar() -> None:
 
 def advance_shortcut_state(pending_key: str, key_char: str, shortcuts: dict[str, str]) -> tuple[str, str | None]:
     candidate = pending_key + key_char if pending_key else key_char
-    for action, shortcut in shortcuts.items():
-        if shortcut == candidate:
-            return "", action
-    if len(candidate) < 2 and any(shortcut.startswith(candidate) for shortcut in shortcuts.values()):
+    action = next((name for name, shortcut in shortcuts.items() if shortcut == candidate), None)
+    if action is not None:
+        return "", action
+    if any(shortcut.startswith(candidate) for shortcut in shortcuts.values()):
         return candidate, None
-    if any(shortcut.startswith(key_char) for shortcut in shortcuts.values()):
-        return key_char, None
+    if pending_key:
+        action = next((name for name, shortcut in shortcuts.items() if shortcut == key_char), None)
+        if action is not None:
+            return "", action
+        if any(shortcut.startswith(key_char) for shortcut in shortcuts.values()):
+            return key_char, None
+        return "", None
     return "", None
 
 
@@ -454,13 +481,15 @@ def process_keypress(
     shortcuts: dict[str, str],
 ) -> tuple[str, str, str | None, bool]:
     key_char = chr(key) if 0 <= key <= 255 and chr(key).isprintable() else ""
+    if key == ord("q"):
+        return "", selected_pane_id, "close", False
     shortcut_prefix = pending_key or (key_char and any(shortcut.startswith(key_char) for shortcut in shortcuts.values()))
     if key_char and shortcut_prefix:
         pending_key, action = advance_shortcut_state(pending_key, key_char, shortcuts)
         return pending_key, selected_pane_id, action, False
 
     pending_key = ""
-    if key in (ord("q"), 27):
+    if key == 27:
         return pending_key, selected_pane_id, "close", False
     if key in (ord("j"), curses.KEY_DOWN) and pane_rows:
         current_index = next(
@@ -530,6 +559,9 @@ def run_interactive(stdscr) -> None:
             next_refresh_at = 0.0
         elif action == "add_session" and target is not None:
             prompt_add_session(target["pane_id"])
+            next_refresh_at = 0.0
+        elif action == "close_pane" and target is not None:
+            subprocess.run(["tmux", "kill-pane", "-t", target["pane_id"]], check=False)
             next_refresh_at = 0.0
         elif action == "close":
             close_sidebar()
