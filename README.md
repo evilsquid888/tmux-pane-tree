@@ -7,7 +7,7 @@ side of every window — with live agent status badges for `claude`, `codex`, an
 `opencode`.
 
 ```
-  ┌─ Sidebar ───────────┬────────────────────────────────┐
+  ┌─ Sidebar ────────────┬────────────────────────────────┐
   │                      │                                │
   │   ├─ work            │  $ claude                      │
   │   │  └─ zsh          │                                │
