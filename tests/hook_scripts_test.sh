@@ -53,6 +53,10 @@ assert_file_contains "$TEST_HOOK_CAPTURE" '--status done'
 assert_file_contains "$TEST_PEON_CAPTURE" 'agent-turn-complete'
 assert_file_contains "$TEST_PEON_STDIN_CAPTURE" '"summary":"Finished task"'
 
+export TEST_HOOK_CAPTURE="$TEST_TMP/codex-hook-json-arg.txt"
+bash scripts/hook-codex.sh '{"type":"agent-turn-complete","summary":"Finished task"}'
+assert_file_contains "$TEST_HOOK_CAPTURE" '--status done'
+
 export TEST_HOOK_CAPTURE="$TEST_TMP/codex-hook-running.txt"
 printf '%s' '{"summary":"Working"}' | bash scripts/hook-codex.sh
 assert_file_contains "$TEST_HOOK_CAPTURE" '--app codex'
@@ -68,6 +72,10 @@ assert_file_contains "$TEST_HOOK_CAPTURE" '--status idle'
 
 export TEST_HOOK_CAPTURE="$TEST_TMP/codex-hook-start.txt"
 printf '%s' '{"summary":"Ready"}' | bash scripts/hook-codex.sh start
+assert_file_contains "$TEST_HOOK_CAPTURE" '--status running'
+
+export TEST_HOOK_CAPTURE="$TEST_TMP/codex-hook-session-start.txt"
+printf '%s' '{"summary":"Ready"}' | bash scripts/hook-codex.sh session-start
 assert_file_contains "$TEST_HOOK_CAPTURE" '--status idle'
 
 export TEST_HOOK_CAPTURE="$TEST_TMP/codex-hook-idle-status.txt"

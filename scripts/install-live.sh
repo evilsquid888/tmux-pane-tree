@@ -112,4 +112,5 @@ if [ -n "${TMUX:-}" ]; then
         tmux set-hook -gu "$hook_name" || true
       done
   tmux source-file "$TMUX_CONF" || true
+  bash "$PLUGIN_DST/scripts/reload-sidebar-panes.sh" || true
 fi

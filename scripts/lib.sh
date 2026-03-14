@@ -110,6 +110,24 @@ list_sidebar_panes() {
     | awk -F'|' -v sidebar_titles="$sidebar_titles" '$2 ~ sidebar_titles { print $1 "|" $3 }'
 }
 
+list_sidebar_panes_in_window() {
+  local window_id="$1"
+  local sidebar_titles
+  sidebar_titles="$(sidebar_title_pattern)"
+  tmux list-panes -a -F '#{pane_id}|#{pane_title}|#{window_id}' \
+    | awk -F'|' -v target_window="$window_id" -v sidebar_titles="$sidebar_titles" \
+        '$2 ~ sidebar_titles && $3 == target_window { print $1 "|" $3 }'
+}
+
+list_sidebar_panes_in_session() {
+  local session_name="$1"
+  local sidebar_titles
+  sidebar_titles="$(sidebar_title_pattern)"
+  tmux list-panes -a -F '#{pane_id}|#{pane_title}|#{session_name}|#{window_id}' \
+    | awk -F'|' -v target_session="$session_name" -v sidebar_titles="$sidebar_titles" \
+        '$2 ~ sidebar_titles && $3 == target_session { print $1 "|" $4 }'
+}
+
 clear_sidebar_state_options() {
   tmux show-options -g 2>/dev/null \
     | awk '/^@tmux_sidebar_(pane|creating|layout|panes|focus)_w/ { print $1 }' \
@@ -119,13 +137,26 @@ clear_sidebar_state_options() {
       done
 }
 
+clear_sidebar_window_state_options() {
+  local window_id="$1"
+  tmux set-option -g -u "$(sidebar_window_option "pane" "$window_id")" 2>/dev/null || true
+  tmux set-option -g -u "$(sidebar_window_option "creating" "$window_id")" 2>/dev/null || true
+  tmux set-option -g -u "$(sidebar_window_option "focus" "$window_id")" 2>/dev/null || true
+  clear_sidebar_window_snapshot "$window_id"
+}
+
 save_sidebar_window_snapshot() {
   local window_id="$1"
-  local layout_option panes_option current_layout current_panes
+  local target_pane="${2:-}"
+  local layout_option panes_option current_layout current_panes layout_target
 
   layout_option="$(sidebar_window_option "layout" "$window_id")"
   panes_option="$(sidebar_window_option "panes" "$window_id")"
-  current_layout="$(tmux display-message -p '#{window_layout}' 2>/dev/null || true)"
+  layout_target="$window_id"
+  if [ -n "$target_pane" ]; then
+    layout_target="$target_pane"
+  fi
+  current_layout="$(tmux display-message -p -t "$layout_target" '#{window_layout}' 2>/dev/null || true)"
   current_panes="$(window_non_sidebar_panes_csv "$window_id")"
 
   if [ -n "$current_layout" ]; then

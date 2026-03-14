@@ -7,7 +7,6 @@ refresh_helper="${TMUX_SIDEBAR_REFRESH_HELPER:-$SCRIPT_DIR/refresh-sidebar.sh}"
 
 pane_id="${1:-}"
 window_id="${2:-}"
-
 enabled="$(tmux show-options -gv @tmux_sidebar_enabled 2>/dev/null || printf '0\n')"
 
 if [ "$enabled" = "1" ] && [ -n "$pane_id" ] && [ -n "$window_id" ]; then

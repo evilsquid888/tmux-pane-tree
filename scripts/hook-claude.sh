@@ -26,16 +26,21 @@ if payload:
         data = {}
 
 event = str(data.get("hook_event_name") or os.environ.get("CLAUDE_HOOK_EVENT_NAME") or "").strip()
+notification_type = str(data.get("notification_type") or "").strip().lower()
 message = str(data.get("message") or data.get("notification_type") or "").strip()
 
-if event in ("Notification", "PermissionRequest"):
+if event in ("SessionStart", "SessionEnd"):
+    status = "idle"
+elif event in ("UserPromptSubmit",):
+    status = "running"
+elif event == "Notification" and notification_type == "idle_prompt":
+    status = "idle"
+elif event in ("Notification", "PermissionRequest"):
     status = "needs-input"
 elif event in ("Stop",):
     status = "done"
 elif event in ("PostToolUseFailure",):
     status = "error"
-elif event in ("SessionEnd",):
-    status = "idle"
 else:
     status = "running"
 

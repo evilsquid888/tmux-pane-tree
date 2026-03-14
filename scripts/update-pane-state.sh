@@ -40,14 +40,11 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+if [ -z "$pane_id" ]; then
+  pane_id="$(tmux display-message -p '#{pane_id}' 2>/dev/null || true)"
+fi
+
 [ -n "$pane_id" ] || exit 0
-
-metadata="$(tmux display-message -p -t "$pane_id" '#{session_name}|#{window_id}|#{window_name}|#{pane_title}|#{pane_current_command}' 2>/dev/null || true)"
-[ -n "$metadata" ] || exit 0
-
-IFS='|' read -r session_name window_id window_name pane_title pane_current_command <<EOF
-$metadata
-EOF
 
 state_dir="$(print_state_dir)"
 mkdir -p "$state_dir"
@@ -62,6 +59,25 @@ if [ -f "$state_file" ]; then
   if [ -n "$existing_updated_at" ] && [ "$existing_updated_at" -gt "$updated_at" ]; then
     exit 0
   fi
+fi
+
+session_name=""
+window_id=""
+window_name=""
+pane_title=""
+pane_current_command=""
+
+metadata="$(tmux display-message -p -t "$pane_id" '#{session_name}|#{window_id}|#{window_name}|#{pane_title}|#{pane_current_command}' 2>/dev/null || true)"
+if [ -n "$metadata" ]; then
+  IFS='|' read -r session_name window_id window_name pane_title pane_current_command <<EOF
+$metadata
+EOF
+elif [ -f "$state_file" ]; then
+  session_name="$(json_get_string "$state_file" "session_name")"
+  window_id="$(json_get_string "$state_file" "window_id")"
+  window_name="$(json_get_string "$state_file" "window_name")"
+  pane_title="$(json_get_string "$state_file" "pane_title")"
+  pane_current_command="$(json_get_string "$state_file" "pane_current_command")"
 fi
 
 tmp_file="$(mktemp "$state_dir/.pane-state.XXXXXX")"

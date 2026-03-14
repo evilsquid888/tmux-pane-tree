@@ -81,16 +81,29 @@ fake_tmux_set_tree() {
 
 fake_tmux_add_sidebar_pane() {
   local pane_id="$1"
-  local window_id="$2"
+  local target_window_id="$2"
+  local sidebar_session_name=""
+  local sidebar_window_name=""
+  local sidebar_window_index="0"
+  for meta_file in "$TEST_TMUX_DATA_DIR"/pane_*.meta; do
+    [ -e "$meta_file" ] || continue
+    . "$meta_file"
+    if [ "$window_id" = "$target_window_id" ]; then
+      sidebar_session_name="$session_name"
+      sidebar_window_name="$window_name"
+      sidebar_window_index="$window_index"
+      break
+    fi
+  done
   cat > "$TEST_TMUX_DATA_DIR/pane_${pane_id//%/}.meta" <<EOF
-session_name=
-window_id=$window_id
-window_name=
+session_name=$sidebar_session_name
+window_id=$target_window_id
+window_name=$sidebar_window_name
 pane_title=$SIDEBAR_PANE_TITLE
 pane_current_command=python3
-window_index=0
+window_index=$sidebar_window_index
 EOF
-  printf '%s|%s|%s\n' "$pane_id" "$SIDEBAR_PANE_TITLE" "$window_id" >> "$TEST_TMUX_DATA_DIR/toggle_panes.txt"
+  printf '%s|%s|%s\n' "$pane_id" "$SIDEBAR_PANE_TITLE" "$target_window_id" >> "$TEST_TMUX_DATA_DIR/toggle_panes.txt"
 }
 
 fake_tmux_no_sidebar() {
@@ -100,6 +113,7 @@ fake_tmux_no_sidebar() {
   rm -f "$TEST_TMUX_DATA_DIR"/pane_*.meta
   rm -f "$TEST_TMUX_DATA_DIR"/option_*.txt
   rm -f "$TEST_TMUX_DATA_DIR"/window_layout_*.txt
+  rm -f "$TEST_TMUX_DATA_DIR/next_sidebar_pane_id.txt"
 }
 
 fake_tmux_sidebar_count() {
@@ -181,6 +195,14 @@ case "$command_name" in
       printf '%s\n' "$pane_title"
       exit 0
     fi
+    if [ -z "$target" ] && [ "$format" = '#{session_name}' ]; then
+      current_pane="$(cat "$data_dir/current_pane.txt")"
+      meta_file="$data_dir/pane_${current_pane//%/}.meta"
+      [ -f "$meta_file" ] || exit 1
+      . "$meta_file"
+      printf '%s\n' "$session_name"
+      exit 0
+    fi
     meta_file="$data_dir/pane_${target//%/}.meta"
     [ -f "$meta_file" ] || exit 1
     . "$meta_file"
@@ -191,6 +213,13 @@ case "$command_name" in
     result="${result//\#\{window_index\}/$window_index}"
     result="${result//\#\{pane_title\}/$pane_title}"
     result="${result//\#\{pane_current_command\}/$pane_current_command}"
+    layout_file="$data_dir/window_layout_${window_id//@/_}.txt"
+    if [ -f "$layout_file" ]; then
+      window_layout="$(cat "$layout_file")"
+    else
+      window_layout=""
+    fi
+    result="${result//\#\{window_layout\}/$window_layout}"
     if [ "$target" = "$(cat "$data_dir/current_pane.txt")" ]; then
       result="${result//\#\{pane_active\}/1}"
     else
@@ -212,11 +241,37 @@ case "$command_name" in
           ;;
       esac
     done
-    if [[ "$format" == '#{pane_id}|#{pane_title}' || "$format" == '#{pane_id}|#{pane_title}|#{window_id}' || "$format" == '#{pane_id}' || "$format" == '#{session_name}' ]]; then
+    if [[ "$format" == '#{pane_id}|#{pane_title}' || "$format" == '#{pane_id}|#{pane_title}|#{window_id}' || "$format" == '#{pane_id}|#{pane_title}|#{session_name}|#{window_id}' || "$format" == '#{pane_id}|#{pane_active}' || "$format" == '#{pane_id}' || "$format" == '#{session_name}' ]]; then
       found="0"
       if [ "$format" = '#{session_name}' ]; then
-        awk -F'|' '{ print $1 }' "$data_dir/list_panes.txt"
+        if [ -z "$target_window" ] && [ -s "$data_dir/list_panes.txt" ]; then
+          awk -F'|' '{ print $1 }' "$data_dir/list_panes.txt"
+          exit 0
+        fi
+        for meta_file in "$data_dir"/pane_*.meta; do
+          [ -e "$meta_file" ] || continue
+          . "$meta_file"
+          if [ -n "$target_window" ] && [ "$window_id" != "$target_window" ]; then
+            continue
+          fi
+          printf '%s\n' "$session_name"
+          found="1"
+          break
+        done
+        [ "$found" = "1" ] || true
         exit 0
+      fi
+      window_active_pane="$(cat "$data_dir/current_pane.txt")"
+      if [ -n "$target_window" ]; then
+        current_meta_file="$data_dir/pane_${window_active_pane//%/}.meta"
+        if [ -f "$current_meta_file" ]; then
+          . "$current_meta_file"
+          if [ "$window_id" != "$target_window" ]; then
+            window_active_pane=""
+          fi
+        else
+          window_active_pane=""
+        fi
       fi
       for meta_file in "$data_dir"/pane_*.meta; do
         [ -e "$meta_file" ] || continue
@@ -226,12 +281,25 @@ case "$command_name" in
         if [ -n "$target_window" ] && [ "$window_id" != "$target_window" ]; then
           continue
         fi
+        if [ "$format" = '#{pane_id}|#{pane_active}' ] && [ -z "$window_active_pane" ]; then
+          window_active_pane="$pane_id"
+        fi
         case "$format" in
           '#{pane_id}|#{pane_title}')
             printf '%s|%s\n' "$pane_id" "$pane_title"
             ;;
           '#{pane_id}|#{pane_title}|#{window_id}')
             printf '%s|%s|%s\n' "$pane_id" "$pane_title" "$window_id"
+            ;;
+          '#{pane_id}|#{pane_title}|#{session_name}|#{window_id}')
+            printf '%s|%s|%s|%s\n' "$pane_id" "$pane_title" "$session_name" "$window_id"
+            ;;
+          '#{pane_id}|#{pane_active}')
+            if [ "$pane_id" = "$window_active_pane" ]; then
+              printf '%s|1\n' "$pane_id"
+            else
+              printf '%s|0\n' "$pane_id"
+            fi
             ;;
           '#{pane_id}')
             printf '%s\n' "$pane_id"
@@ -246,7 +314,19 @@ case "$command_name" in
     ;;
   split-window)
     printf 'split-window %s\n' "$*" >> "$data_dir/commands.log"
-    current_pane="$(cat "$data_dir/current_pane.txt")"
+    target_pane="$(cat "$data_dir/current_pane.txt")"
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t)
+          target_pane="$2"
+          shift 2
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    current_pane="$target_pane"
     meta_file="$data_dir/pane_${current_pane//%/}.meta"
     session_name=""
     window_id="@unknown"
@@ -254,15 +334,22 @@ case "$command_name" in
     if [ -f "$meta_file" ]; then
       . "$meta_file"
     fi
-    cat > "$data_dir/pane_99.meta" <<METAEOF
+    next_pane_id_file="$data_dir/next_sidebar_pane_id.txt"
+    if [ -f "$next_pane_id_file" ]; then
+      next_pane_id="$(cat "$next_pane_id_file")"
+    else
+      next_pane_id="99"
+    fi
+    cat > "$data_dir/pane_${next_pane_id}.meta" <<METAEOF
 session_name=$session_name
 window_id=$window_id
 window_name=$window_name
 pane_title=Sidebar
 pane_current_command=python3
 METAEOF
-    printf '%%99|Sidebar|%s\n' "$window_id" >> "$data_dir/toggle_panes.txt"
-    printf '%%99\n'
+    printf '%%%s|Sidebar|%s\n' "$next_pane_id" "$window_id" >> "$data_dir/toggle_panes.txt"
+    printf '%%%s\n' "$next_pane_id"
+    printf '%s\n' "$((next_pane_id - 1))" > "$next_pane_id_file"
     ;;
   select-layout)
     printf 'select-layout %s\n' "$*" >> "$data_dir/commands.log"
@@ -334,6 +421,9 @@ PY
     [ -n "$shell_command" ] || exit 0
     bash -c "$shell_command"
     ;;
+  wait-for)
+    printf 'wait-for %s\n' "$*" >> "$data_dir/commands.log"
+    ;;
   set-option)
     printf 'set-option %s\n' "$*" >> "$data_dir/commands.log"
     scope=""
@@ -395,6 +485,7 @@ PY
     printf 'set %s\n' "$*" >> "$data_dir/commands.log"
     ;;
   kill-pane)
+    printf 'kill-pane %s\n' "$*" >> "$data_dir/commands.log"
     target=""
     while [ "$#" -gt 0 ]; do
       case "$1" in

@@ -14,7 +14,7 @@ state_file="$(print_state_dir)/pane-$pane_id.json"
 app="$(json_get_string "$state_file" "app")"
 status="$(json_get_string "$state_file" "status")"
 case "$app:$status" in
-  *:needs-input|*:done|codex:running)
+  *:needs-input|*:done)
     perl -0pi -e 's/"status":"[^"]*"/"status":"idle"/' "$state_file"
     "$refresh_helper" >/dev/null 2>&1 || true
     ;;

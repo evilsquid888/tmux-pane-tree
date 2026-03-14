@@ -36,4 +36,4 @@ EOF
 
 bash scripts/clear-pane-state.sh "%10"
 
-assert_file_contains "$TMUX_SIDEBAR_STATE_DIR/pane-%10.json" '"status":"idle"'
+assert_file_contains "$TMUX_SIDEBAR_STATE_DIR/pane-%10.json" '"status":"running"'

@@ -5,11 +5,42 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 update_helper="${TMUX_SIDEBAR_UPDATE_HELPER:-$SCRIPT_DIR/update-pane-state.sh}"
 forward_notify="${TMUX_SIDEBAR_CODEX_NOTIFY_FORWARD:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/peon-ping/adapters/codex.sh}"
 
-codex_event="${1:-}"
+looks_like_json() {
+  case "${1:-}" in
+    \{*|\[*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+codex_event=""
+payload=""
+arg1="${1:-}"
+arg2="${2:-}"
 if [ -t 0 ]; then
-  payload=""
+  if looks_like_json "$arg1"; then
+    payload="$arg1"
+    codex_event="$arg2"
+  else
+    codex_event="$arg1"
+    if looks_like_json "$arg2"; then
+      payload="$arg2"
+    fi
+  fi
 else
+  codex_event="$arg1"
   payload="$(cat)"
+  if [ -z "$payload" ]; then
+    if looks_like_json "$arg1"; then
+      payload="$arg1"
+      codex_event="$arg2"
+    elif looks_like_json "$arg2"; then
+      payload="$arg2"
+    fi
+  fi
 fi
 
 if [ -x "$forward_notify" ]; then
@@ -81,8 +112,10 @@ elif (
     status = "needs-input"
 elif raw_event.startswith("error") or raw_event.startswith("fail"):
     status = "error"
-elif raw_event in ("start", "session-start"):
+elif raw_event == "session-start":
     status = "idle"
+elif raw_event == "start":
+    status = "running"
 elif status_hint == "running":
     status = "running"
 elif raw_event in done_events or status_hint in done_statuses:
