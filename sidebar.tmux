@@ -1,5 +1,6 @@
 run-shell -b "#{d:current_file}/scripts/configure-pane-border-format.sh"
 bind-key t run-shell -b "#{d:current_file}/scripts/toggle-sidebar.sh"
+bind-key T run-shell -b "#{d:current_file}/scripts/focus-sidebar.sh"
 set-hook -g client-active[198] "run-shell -b '#{d:current_file}/scripts/ensure-sidebar-pane.sh'"
 set-hook -g client-attached[199] "run-shell -b '#{d:current_file}/scripts/ensure-sidebar-pane.sh'"
 set-hook -g client-session-changed[200] "run-shell -b '#{d:current_file}/scripts/ensure-sidebar-pane.sh #{pane_id} #{window_id}'"
@@ -21,3 +22,4 @@ set-hook -g session-window-changed[215] "run-shell -b '#{d:current_file}/scripts
 set-hook -g session-window-changed[216] "run-shell -b '#{d:current_file}/scripts/remember-main-pane.sh #{pane_id}'"
 set-hook -g after-select-window[217] "run-shell -b '#{d:current_file}/scripts/clear-pane-state.sh #{pane_id}'"
 set-hook -g after-select-pane[218] "run-shell -b '#{d:current_file}/scripts/clear-pane-state.sh #{pane_id}'"
+run-shell -b "#{d:current_file}/scripts/apply-key-overrides.sh"
