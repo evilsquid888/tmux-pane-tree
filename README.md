@@ -7,19 +7,23 @@ side of every window — with live agent status badges for `claude`, `codex`, an
 `opencode`.
 
 ```
-  ┌─ Sidebar ──────────┬─────────────────────────────────┐
-  │                     │                                 │
-  │ ├─ work             │  $ claude                       │
-  │ │  ├─ editor        │                                 │
-  │ │  │  └─ nvim       │  Working on your request...     │
-  │ │  └─ agents        │                                 │
-  │ │     ├─ claude [~] │                                 │
-  │ │     └─ codex  [?] │                                 │
-  │ └─ ops              │                                 │
-  │    └─ logs          │                                 │
-  │       └─ tail       │                                 │
-  │                     │                                 │
-  └─────────────────────┴─────────────────────────────────┘
+  ┌─ Sidebar ───────────┬────────────────────────────────┐
+  │                      │                                │
+  │   ├─ work            │  $ claude                      │
+  │   │  └─ zsh          │                                │
+  │   │     ├─ claude    │  Working on your request...    │
+  │   │     └─ zsh       │                                │
+  │   └─ env             │                                │
+  │      ├─ claude       │                                │
+  │      │  ├─ claude    │                                │
+  │      │  ├─ lazygit   │                                │
+  │ ▶    │  ├─ claude [~]│                                │
+  │      │  └─ yazi      │                                │
+  │      └─ yazi         │                                │
+  │         ├─ yazi      │                                │
+  │         └─ yazi      │                                │
+  │                      │                                │
+  └──────────────────────┴────────────────────────────────┘
 ```
 
 ![tmux-sidebar showcase](images/showcase.gif)
