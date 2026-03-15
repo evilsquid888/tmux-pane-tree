@@ -51,7 +51,14 @@ INPUT_POLL_MS = 25
 REFRESH_INTERVAL_SECONDS = 2.0
 SHORTCUTS_CACHE_TTL_SECONDS = 30.0
 ESC_DELAY_MS = 25
-MOUSE_SCROLL_DOWN = getattr(curses, "BUTTON5_PRESSED", 2097152)
+if hasattr(curses, "BUTTON5_PRESSED"):
+    MOUSE_SCROLL_DOWN = curses.BUTTON5_PRESSED
+    _EXTRA_MOUSE_MASK = 0
+else:
+    _EXTRA_MOUSE_MASK = getattr(curses, "REPORT_MOUSE_POSITION", 0x08000000)
+    MOUSE_SCROLL_DOWN = _EXTRA_MOUSE_MASK
+MOUSE_SCROLL_LINES = 3
+SCROLL_MARGIN = 2
 
 _refresh_requested = False
 
@@ -566,10 +573,11 @@ def find_selected_row_index(rows: list[dict], selected_pane_id: str) -> int | No
 def ensure_visible(row_index: int | None, scroll_offset: int, visible_lines: int) -> int:
     if row_index is None or visible_lines <= 0:
         return 0
-    if row_index < scroll_offset:
-        return row_index
-    if row_index >= scroll_offset + visible_lines:
-        return row_index - visible_lines + 1
+    margin = min(SCROLL_MARGIN, max(0, (visible_lines - 1) // 2))
+    if row_index < scroll_offset + margin:
+        return max(0, row_index - margin)
+    if row_index >= scroll_offset + visible_lines - margin:
+        return row_index - visible_lines + 1 + margin
     return scroll_offset
 
 
@@ -640,7 +648,7 @@ def run_interactive(stdscr) -> None:
         curses.set_escdelay(ESC_DELAY_MS)
     stdscr.keypad(True)
     stdscr.timeout(INPUT_POLL_MS)
-    curses.mousemask(curses.ALL_MOUSE_EVENTS)
+    curses.mousemask(curses.ALL_MOUSE_EVENTS | _EXTRA_MOUSE_MASK)
 
     selected_pane_id = tmux_option("@tmux_sidebar_main_pane")
     pending_key = ""
@@ -649,6 +657,7 @@ def run_interactive(stdscr) -> None:
     shortcuts = dict(DEFAULT_SHORTCUTS)
     next_refresh_at = 0.0
     scroll_offset = 0
+    user_scrolled = False
     needs_render = True
 
     while True:
@@ -657,10 +666,16 @@ def run_interactive(stdscr) -> None:
         if signaled:
             _refresh_requested = False
         if next_refresh_at == 0.0 or signaled or now >= next_refresh_at:
+            prev_pane = selected_pane_id
             rows, pane_rows, shortcuts, selected_pane_id = load_view_state(selected_pane_id)
             next_refresh_at = now + REFRESH_INTERVAL_SECONDS
-            sel_idx = find_selected_row_index(rows, selected_pane_id)
-            scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
+            if selected_pane_id != prev_pane:
+                user_scrolled = False
+            if not user_scrolled:
+                sel_idx = find_selected_row_index(rows, selected_pane_id)
+                scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
+            max_offset = max(0, len(rows) - curses.LINES)
+            scroll_offset = max(0, min(scroll_offset, max_offset))
             needs_render = True
 
         if needs_render:
@@ -683,24 +698,15 @@ def run_interactive(stdscr) -> None:
             except curses.error:
                 continue
             if bstate & curses.BUTTON4_PRESSED:
-                if pane_rows:
-                    idx = next((i for i, r in enumerate(pane_rows) if r["pane_id"] == selected_pane_id), 0)
-                    prev_id = pane_rows[max(idx - 1, 0)]["pane_id"]
-                    if prev_id != selected_pane_id:
-                        selected_pane_id = prev_id
-                        sel_idx = find_selected_row_index(rows, selected_pane_id)
-                        scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
-                        needs_render = True
+                scroll_offset = max(0, scroll_offset - MOUSE_SCROLL_LINES)
+                user_scrolled = True
+                needs_render = True
                 continue
             if bstate & MOUSE_SCROLL_DOWN:
-                if pane_rows:
-                    idx = next((i for i, r in enumerate(pane_rows) if r["pane_id"] == selected_pane_id), 0)
-                    next_id = pane_rows[min(idx + 1, len(pane_rows) - 1)]["pane_id"]
-                    if next_id != selected_pane_id:
-                        selected_pane_id = next_id
-                        sel_idx = find_selected_row_index(rows, selected_pane_id)
-                        scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
-                        needs_render = True
+                max_offset = max(0, len(rows) - curses.LINES)
+                scroll_offset = min(max_offset, scroll_offset + MOUSE_SCROLL_LINES)
+                user_scrolled = True
+                needs_render = True
                 continue
             if bstate & (curses.BUTTON1_PRESSED | curses.BUTTON1_CLICKED):
                 row_idx = my + scroll_offset
@@ -730,6 +736,7 @@ def run_interactive(stdscr) -> None:
             shortcuts,
         )
         if selection_changed:
+            user_scrolled = False
             sel_idx = find_selected_row_index(rows, selected_pane_id)
             scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
             needs_render = True
