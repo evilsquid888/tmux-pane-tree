@@ -70,7 +70,7 @@ rm -f "$TMUX_SIDEBAR_STATE_DIR/pane-%5.json"
 output="$(python3 scripts/sidebar-ui.py --dump-render 2>&1)"
 
 assert_contains "$output" 'claude'
-assert_contains "$output" '2.1.76'
+assert_not_contains "$output" '2.1.76'
 
 fake_tmux_set_tree <<'EOF'
 work|@1|editor|%6|zsh|zsh|1
@@ -223,7 +223,8 @@ rm -f "$TMUX_SIDEBAR_STATE_DIR"/pane-*.json
 
 output="$(python3 scripts/sidebar-ui.py --dump-render 2>&1)"
 
-assert_contains "$output" '2.1.76'
+assert_contains "$output" 'claude'
+assert_not_contains "$output" '2.1.76'
 
 fake_tmux_set_tree <<'EOF'
 work|@1|myproject|%24|2.1.76|2.1.76|1
@@ -254,3 +255,32 @@ output="$(python3 scripts/sidebar-ui.py --dump-render 2>&1)"
 window_line="$(printf '%s\n' "$output" | grep -E '^\s+[├└]─' | sed -n '2p')"
 assert_contains "$window_line" 'claude'
 assert_not_contains "$window_line" '2.1.76'
+
+fake_tmux_set_tree <<'EOF'
+work|@1|editor|%30|2.1.76|⠂ Claude Code|1
+EOF
+rm -f "$TMUX_SIDEBAR_STATE_DIR"/pane-*.json
+
+output="$(python3 scripts/sidebar-ui.py --dump-render 2>&1)"
+
+assert_contains "$output" 'claude [~]'
+assert_not_contains "$output" '2.1.76'
+
+fake_tmux_set_tree <<'EOF'
+work|@1|editor|%31|2.1.76|● sandu.dorogan: done|1
+EOF
+rm -f "$TMUX_SIDEBAR_STATE_DIR"/pane-*.json
+
+output="$(python3 scripts/sidebar-ui.py --dump-render 2>&1)"
+
+assert_contains "$output" 'claude [!]'
+assert_not_contains "$output" '2.1.76'
+
+fake_tmux_set_tree <<'EOF'
+work|@1|editor|%32|2.1.76|● project: error|1
+EOF
+rm -f "$TMUX_SIDEBAR_STATE_DIR"/pane-*.json
+
+output="$(python3 scripts/sidebar-ui.py --dump-render 2>&1)"
+
+assert_contains "$output" 'claude [x]'

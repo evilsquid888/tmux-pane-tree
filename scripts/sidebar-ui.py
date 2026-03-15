@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import curses
 import json
 import os
 import re
+import signal
 import shlex
 import subprocess
 import time
@@ -46,8 +48,44 @@ NON_AGENT_COMMANDS = {
 }
 SIDEBAR_TITLES = {"Sidebar", "tmux-sidebar"}
 INPUT_POLL_MS = 25
-REFRESH_INTERVAL_SECONDS = 0.25
+REFRESH_INTERVAL_SECONDS = 2.0
+SHORTCUTS_CACHE_TTL_SECONDS = 30.0
 ESC_DELAY_MS = 25
+MOUSE_SCROLL_DOWN = getattr(curses, "BUTTON5_PRESSED", 2097152)
+
+_refresh_requested = False
+
+
+def _handle_sigusr1(signum: int, frame: object) -> None:
+    global _refresh_requested
+    _refresh_requested = True
+
+
+def _pid_file_path() -> Path | None:
+    pane = os.environ.get("TMUX_PANE", "")
+    if not pane:
+        return None
+    return STATE_DIR / f"sidebar-{pane}.pid"
+
+
+def _write_pid_file() -> None:
+    pid_path = _pid_file_path()
+    if pid_path is None:
+        return
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = pid_path.with_suffix(".tmp")
+    tmp.write_text(str(os.getpid()))
+    tmp.rename(pid_path)
+
+
+def _remove_pid_file() -> None:
+    pid_path = _pid_file_path()
+    if pid_path is None:
+        return
+    try:
+        pid_path.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def run_tmux(*args: str) -> str:
@@ -119,7 +157,9 @@ def looks_like_codex(value: str) -> bool:
 
 def looks_like_claude(value: str) -> bool:
     token = normalize_token(value)
-    return token == "claude" or token.startswith("claude-") or token.startswith("claude_")
+    if token == "claude" or token.startswith("claude-") or token.startswith("claude_"):
+        return True
+    return bool(re.search(r"\bclaude\b", value, re.IGNORECASE))
 
 
 def looks_like_semver(value: str) -> bool:
@@ -146,10 +186,27 @@ def state_agent_app(command: str, title: str, state: dict | None) -> str:
     return ""
 
 
+def claude_title_status(title: str) -> str:
+    match = re.search(r":\s*([a-z_-]+)\s*$", title.strip().lower())
+    if match:
+        suffix = match.group(1)
+        return {
+            "done": "done",
+            "error": "error",
+            "needs-input": "needs-input",
+            "running": "running",
+        }.get(suffix, "")
+    if re.match(r"^[\u2800-\u28FF]", title.strip()):
+        return "running"
+    return ""
+
+
 def live_agent_app(command: str, title: str, state: dict | None) -> str:
     if looks_like_codex(command) or looks_like_codex(title):
         return "codex"
     if looks_like_claude(command) or looks_like_claude(title):
+        return "claude"
+    if looks_like_semver(command) and not should_preserve_live_label(command, title):
         return "claude"
     return state_agent_app(command, title, state)
 
@@ -190,7 +247,14 @@ def effective_pane_status(command: str, title: str, state: dict | None) -> str:
             return title_status
         return ""
 
-    return status
+    if status == "idle":
+        return ""
+    if status in ("running", "needs-input", "error", "done"):
+        return status
+    title_status = claude_title_status(title)
+    if title_status:
+        return title_status
+    return ""
 
 
 def pane_display_label(command: str, title: str, state: dict | None) -> str:
@@ -314,7 +378,8 @@ def load_tree() -> list[dict]:
     for session_index, session in enumerate(session_items):
         session_last = session_index == len(session_items) - 1
         session_prefix = "   " if session_last else "│  "
-        rows.append({"kind": "session", "name": session["name"], "text": f"{'└─' if session_last else '├─'} {session['name']}"})
+        rows.append({"kind": "session", "session": session["name"], "text": f"{'└─' if session_last else '├─'} {session['name']}"})
+
 
         windows = list(session["windows"].values())
         for window_index, window in enumerate(windows):
@@ -324,18 +389,22 @@ def load_tree() -> list[dict]:
             rows.append(
                 {
                     "kind": "window",
-                    "id": window["id"],
                     "session": session["name"],
+                    "window": window["id"],
                     "text": f"{session_prefix}{'└─' if window_last else '├─'} {display_name}",
                 }
             )
-            first_pane_row = len(rows)
-            for pane_index, pane in enumerate(window["panes"]):
+            visible_panes = window["panes"]
+            if hide_panes:
+                visible_panes = [
+                    p for p in visible_panes
+                    if badge_for_status(effective_pane_status(p["label"], p["title"], pane_states.get(p["id"], {})))
+                ]
+            for pane_index, pane in enumerate(visible_panes):
+                pane_last = pane_index == len(visible_panes) - 1
                 pane_state = pane_states.get(pane["id"], {})
                 badge = badge_for_status(effective_pane_status(pane["label"], pane["title"], pane_state))
                 label = pane_display_label(pane["label"], pane["title"], pane_state)
-                if hide_panes and not badge:
-                    continue
                 if badge:
                     label = f"{label} {badge}"
                 rows.append(
@@ -345,11 +414,9 @@ def load_tree() -> list[dict]:
                         "session": pane["session"],
                         "window": pane["window"],
                         "active": pane["active"],
-                        "text": f"{window_prefix}├─ {label}",
+                        "text": f"{window_prefix}{'└─' if pane_last else '├─'} {label}",
                     }
                 )
-            if len(rows) > first_pane_row:
-                rows[-1]["text"] = rows[-1]["text"].replace("├─", "└─", 1)
     return rows
 
 
@@ -475,58 +542,56 @@ def reconcile_selected_pane(selected_pane_id: str, pane_rows: list[dict]) -> str
     return selected_pane_id
 
 
-def active_pane_id() -> str:
-    try:
-        return run_tmux("display-message", "-p", "#{pane_id}").strip()
-    except subprocess.CalledProcessError:
-        return ""
+_cached_shortcuts: dict[str, str] | None = None
+_cached_shortcuts_at: float = 0.0
+
+
+def cached_configured_shortcuts() -> dict[str, str]:
+    global _cached_shortcuts, _cached_shortcuts_at
+    now = time.monotonic()
+    if _cached_shortcuts is not None and now - _cached_shortcuts_at < SHORTCUTS_CACHE_TTL_SECONDS:
+        return _cached_shortcuts
+    _cached_shortcuts = configured_shortcuts()
+    _cached_shortcuts_at = now
+    return _cached_shortcuts
 
 
 def load_view_state(selected_pane_id: str) -> tuple[list[dict], list[dict], dict[str, str], str]:
     rows = load_tree()
     pane_rows = pane_rows_for(rows)
-    shortcuts = configured_shortcuts()
-    if not sidebar_has_focus() or not selected_pane_id:
-        candidate = tmux_option("@tmux_sidebar_main_pane")
-        if not candidate or not any(row["pane_id"] == candidate for row in pane_rows):
-            candidate = active_pane_id()
-        selected_pane_id = candidate or selected_pane_id
+    shortcuts = cached_configured_shortcuts()
+    if not sidebar_has_focus():
+        selected_pane_id = tmux_option("@tmux_sidebar_main_pane") or selected_pane_id
     return rows, pane_rows, shortcuts, reconcile_selected_pane(selected_pane_id, pane_rows)
 
 
-def selected_row_index(rows: list[dict], selected_pane_id: str) -> int | None:
+def find_selected_row_index(rows: list[dict], selected_pane_id: str) -> int | None:
     return next(
-        (index for index, row in enumerate(rows) if row["kind"] == "pane" and row["pane_id"] == selected_pane_id),
+        (i for i, row in enumerate(rows) if row["kind"] == "pane" and row.get("pane_id") == selected_pane_id),
         None,
     )
 
 
-def clamp_scroll(scroll_offset: int, selected_idx: int | None, total_rows: int, visible_rows: int) -> int:
-    if selected_idx is not None:
-        if selected_idx < scroll_offset:
-            scroll_offset = selected_idx
-        elif selected_idx >= scroll_offset + visible_rows:
-            scroll_offset = selected_idx - visible_rows + 1
-    scroll_offset = max(0, min(scroll_offset, max(0, total_rows - visible_rows)))
+def ensure_visible(row_index: int | None, scroll_offset: int, visible_lines: int) -> int:
+    if row_index is None or visible_lines <= 0:
+        return 0
+    if row_index < scroll_offset:
+        return row_index
+    if row_index >= scroll_offset + visible_lines:
+        return row_index - visible_lines + 1
     return scroll_offset
 
 
-def render_screen(stdscr, rows: list[dict], selected_pane_id: str, scroll_offset: int = 0, follow_selection: bool = False) -> int:
+def render_screen(stdscr, rows: list[dict], selected_pane_id: str, scroll_offset: int = 0) -> None:
     width = max(0, curses.COLS - 1)
-    visible = curses.LINES
-    rendered = render_rows(rows, selected_pane_id, width)
-    if follow_selection:
-        sel_idx = selected_row_index(rows, selected_pane_id)
-        scroll_offset = clamp_scroll(scroll_offset, sel_idx, len(rendered), visible)
-    else:
-        scroll_offset = max(0, min(scroll_offset, max(0, len(rendered) - visible)))
     stdscr.erase()
-    for y, line in enumerate(rendered[scroll_offset : scroll_offset + visible]):
-        if y >= visible:
+    rendered = render_rows(rows, selected_pane_id, width)
+    visible = rendered[scroll_offset:scroll_offset + curses.LINES]
+    for y, line in enumerate(visible):
+        if y >= curses.LINES:
             break
         stdscr.addnstr(y, 0, line, width)
     stdscr.refresh()
-    return scroll_offset
 
 
 def selected_pane_row(pane_rows: list[dict], selected_pane_id: str) -> dict | None:
@@ -573,70 +638,98 @@ def process_keypress(
 
 
 def run_interactive(stdscr) -> None:
+    global _refresh_requested
+
+    signal.signal(signal.SIGUSR1, _handle_sigusr1)
+    _write_pid_file()
+    atexit.register(_remove_pid_file)
+
     curses.curs_set(0)
     if hasattr(curses, "set_escdelay"):
         curses.set_escdelay(ESC_DELAY_MS)
-    curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
     stdscr.keypad(True)
     stdscr.timeout(INPUT_POLL_MS)
+    curses.mousemask(curses.ALL_MOUSE_EVENTS)
 
-    selected_pane_id = ""
+    selected_pane_id = tmux_option("@tmux_sidebar_main_pane")
     pending_key = ""
     rows: list[dict] = []
     pane_rows: list[dict] = []
     shortcuts = dict(DEFAULT_SHORTCUTS)
     next_refresh_at = 0.0
-    needs_render = True
-    follow_selection = True
     scroll_offset = 0
+    needs_render = True
 
     while True:
         now = time.monotonic()
-        if next_refresh_at == 0.0 or now >= next_refresh_at:
+        signaled = _refresh_requested
+        if signaled:
+            _refresh_requested = False
+        if next_refresh_at == 0.0 or signaled or now >= next_refresh_at:
             rows, pane_rows, shortcuts, selected_pane_id = load_view_state(selected_pane_id)
             next_refresh_at = now + REFRESH_INTERVAL_SECONDS
+            sel_idx = find_selected_row_index(rows, selected_pane_id)
+            scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
             needs_render = True
 
         if needs_render:
-            scroll_offset = render_screen(stdscr, rows, selected_pane_id, scroll_offset, follow_selection)
+            render_screen(stdscr, rows, selected_pane_id, scroll_offset)
             needs_render = False
-            follow_selection = False
 
         key = stdscr.getch()
         if key == -1:
             continue
 
+        if key == curses.KEY_RESIZE:
+            sel_idx = find_selected_row_index(rows, selected_pane_id)
+            scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
+            needs_render = True
+            continue
+
         if key == curses.KEY_MOUSE:
             try:
-                _, _, mouse_y, _, bstate = curses.getmouse()
+                _, mx, my, _, bstate = curses.getmouse()
             except curses.error:
                 continue
             if bstate & curses.BUTTON4_PRESSED:
-                scroll_offset = max(0, scroll_offset - 3)
-                needs_render = True
+                if pane_rows:
+                    idx = next((i for i, r in enumerate(pane_rows) if r["pane_id"] == selected_pane_id), 0)
+                    prev_id = pane_rows[max(idx - 1, 0)]["pane_id"]
+                    if prev_id != selected_pane_id:
+                        selected_pane_id = prev_id
+                        sel_idx = find_selected_row_index(rows, selected_pane_id)
+                        scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
+                        needs_render = True
                 continue
-            if bstate & getattr(curses, "BUTTON5_PRESSED", 0):
-                scroll_offset = min(max(0, len(rows) - curses.LINES), scroll_offset + 3)
-                needs_render = True
+            if bstate & MOUSE_SCROLL_DOWN:
+                if pane_rows:
+                    idx = next((i for i, r in enumerate(pane_rows) if r["pane_id"] == selected_pane_id), 0)
+                    next_id = pane_rows[min(idx + 1, len(pane_rows) - 1)]["pane_id"]
+                    if next_id != selected_pane_id:
+                        selected_pane_id = next_id
+                        sel_idx = find_selected_row_index(rows, selected_pane_id)
+                        scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
+                        needs_render = True
                 continue
-            if bstate & curses.BUTTON1_CLICKED or bstate & curses.BUTTON1_RELEASED:
-                row_idx = scroll_offset + mouse_y
+            if bstate & (curses.BUTTON1_PRESSED | curses.BUTTON1_CLICKED):
+                row_idx = my + scroll_offset
                 if 0 <= row_idx < len(rows):
-                    clicked_row = rows[row_idx]
-                    kind = clicked_row["kind"]
-                    if kind == "pane":
-                        selected_pane_id = clicked_row["pane_id"]
-                        subprocess.run(["tmux", "switch-client", "-t", clicked_row["session"]], check=False)
-                        subprocess.run(["tmux", "select-window", "-t", clicked_row["window"]], check=False)
-                        subprocess.run(["tmux", "select-pane", "-t", clicked_row["pane_id"]], check=False)
-                    elif kind == "window":
-                        subprocess.run(["tmux", "switch-client", "-t", clicked_row["session"]], check=False)
-                        subprocess.run(["tmux", "select-window", "-t", clicked_row["id"]], check=False)
-                    elif kind == "session":
-                        subprocess.run(["tmux", "switch-client", "-t", clicked_row["name"]], check=False)
-                    next_refresh_at = 0.0
-                    needs_render = True
-            continue
+                    clicked = rows[row_idx]
+                    if clicked["kind"] == "pane":
+                        selected_pane_id = clicked["pane_id"]
+                        needs_render = True
+                        subprocess.run(["tmux", "switch-client", "-t", clicked["session"]], check=False)
+                        subprocess.run(["tmux", "select-window", "-t", clicked["window"]], check=False)
+                        subprocess.run(["tmux", "select-pane", "-t", clicked["pane_id"]], check=False)
+                        next_refresh_at = 0.0
+                    elif clicked["kind"] == "window":
+                        subprocess.run(["tmux", "switch-client", "-t", clicked["session"]], check=False)
+                        subprocess.run(["tmux", "select-window", "-t", clicked["window"]], check=False)
+                        next_refresh_at = 0.0
+                    elif clicked["kind"] == "session":
+                        subprocess.run(["tmux", "switch-client", "-t", clicked["session"]], check=False)
+                        next_refresh_at = 0.0
+                continue
 
         pending_key, selected_pane_id, action, selection_changed = process_keypress(
             key,
@@ -646,8 +739,9 @@ def run_interactive(stdscr) -> None:
             shortcuts,
         )
         if selection_changed:
+            sel_idx = find_selected_row_index(rows, selected_pane_id)
+            scroll_offset = ensure_visible(sel_idx, scroll_offset, curses.LINES)
             needs_render = True
-            follow_selection = True
             continue
 
         target = selected_pane_row(pane_rows, selected_pane_id)
