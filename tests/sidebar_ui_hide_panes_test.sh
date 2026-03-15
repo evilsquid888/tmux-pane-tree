@@ -238,3 +238,154 @@ PY
 assert_contains "$output" '"▶ editor"'
 assert_contains "$output" '"▶ logs"'
 assert_contains "$output" '"▶ claude [~]"'
+
+# Test x on a collapsed window: kill-window when session has multiple windows
+output="$(python3 - <<'PY'
+import importlib.util
+import json
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("sidebar_ui", Path("scripts/sidebar-ui.py"))
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+module.curses.curs_set = lambda _: None
+module.curses.mousemask = lambda _: (0, 0)
+module.curses.COLS = 40
+module.curses.LINES = 10
+
+module.configured_shortcuts = lambda: dict(module.DEFAULT_SHORTCUTS)
+module.sidebar_has_focus = lambda: True
+module.tmux_option = lambda opt: "on" if opt == "@tmux_sidebar_hide_panes" else ""
+module.close_sidebar = lambda: None
+module.focus_main_pane = lambda: None
+module.prompt_add_window = lambda pane_id: None
+module.prompt_add_session = lambda pane_id: None
+
+tmux_commands = []
+original_run = __import__("subprocess").run
+
+
+def capture_run(args, **kwargs):
+    if args and args[0] == "tmux":
+        tmux_commands.append(" ".join(args))
+    return original_run(args, **kwargs)
+
+
+__import__("subprocess").run = capture_run
+
+
+def fake_load_tree():
+    return [
+        {"kind": "session", "text": "work", "session": "work"},
+        {"kind": "window", "text": "editor", "session": "work", "window": "@1", "pane_id": "@1"},
+        {"kind": "window", "text": "logs", "session": "work", "window": "@2", "pane_id": "@2"},
+    ]
+
+
+module.load_tree = fake_load_tree
+
+class FakeScreen:
+    def __init__(self, keys):
+        self.keys = list(keys)
+        self.lines = {}
+        self.frames = []
+    def keypad(self, enabled): pass
+    def timeout(self, milliseconds): pass
+    def erase(self): self.lines = {}
+    def addnstr(self, y, x, text, limit): self.lines[y] = text[:limit]
+    def refresh(self):
+        self.frames.append([self.lines.get(i, "") for i in range(module.curses.LINES)])
+    def getch(self):
+        if not self.keys:
+            raise AssertionError("getch called after key sequence ended")
+        return self.keys.pop(0)
+
+# Press x on first window (@1), then quit
+keys = [ord("x"), ord("q")]
+screen = FakeScreen(keys)
+module.run_interactive(screen)
+
+__import__("subprocess").run = original_run
+print(json.dumps({"commands": tmux_commands}, ensure_ascii=False, sort_keys=True))
+PY
+)"
+
+# Two windows in the session — should kill-window, not kill-session
+assert_contains "$output" 'kill-window -t @1'
+assert_not_contains "$output" 'kill-session'
+
+# Test x on a collapsed window: kill-session when it's the only window
+output="$(python3 - <<'PY'
+import importlib.util
+import json
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("sidebar_ui", Path("scripts/sidebar-ui.py"))
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+module.curses.curs_set = lambda _: None
+module.curses.mousemask = lambda _: (0, 0)
+module.curses.COLS = 40
+module.curses.LINES = 10
+
+module.configured_shortcuts = lambda: dict(module.DEFAULT_SHORTCUTS)
+module.sidebar_has_focus = lambda: True
+module.tmux_option = lambda opt: "on" if opt == "@tmux_sidebar_hide_panes" else ""
+module.close_sidebar = lambda: None
+module.focus_main_pane = lambda: None
+module.prompt_add_window = lambda pane_id: None
+module.prompt_add_session = lambda pane_id: None
+
+tmux_commands = []
+original_run = __import__("subprocess").run
+
+
+def capture_run(args, **kwargs):
+    if args and args[0] == "tmux":
+        tmux_commands.append(" ".join(args))
+    return original_run(args, **kwargs)
+
+
+__import__("subprocess").run = capture_run
+
+
+def fake_load_tree():
+    return [
+        {"kind": "session", "text": "solo", "session": "solo"},
+        {"kind": "window", "text": "editor", "session": "solo", "window": "@5", "pane_id": "@5"},
+    ]
+
+
+module.load_tree = fake_load_tree
+
+class FakeScreen:
+    def __init__(self, keys):
+        self.keys = list(keys)
+        self.lines = {}
+        self.frames = []
+    def keypad(self, enabled): pass
+    def timeout(self, milliseconds): pass
+    def erase(self): self.lines = {}
+    def addnstr(self, y, x, text, limit): self.lines[y] = text[:limit]
+    def refresh(self):
+        self.frames.append([self.lines.get(i, "") for i in range(module.curses.LINES)])
+    def getch(self):
+        if not self.keys:
+            raise AssertionError("getch called after key sequence ended")
+        return self.keys.pop(0)
+
+# Press x on the only window, then quit
+keys = [ord("x"), ord("q")]
+screen = FakeScreen(keys)
+module.run_interactive(screen)
+
+__import__("subprocess").run = original_run
+print(json.dumps({"commands": tmux_commands}, ensure_ascii=False, sort_keys=True))
+PY
+)"
+
+# Only one window in session — should kill-session
+assert_contains "$output" 'kill-session -t solo'
+assert_not_contains "$output" 'kill-window'

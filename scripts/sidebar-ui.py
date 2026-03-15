@@ -783,8 +783,20 @@ def run_interactive(stdscr) -> None:
         elif action == "add_session" and target is not None:
             prompt_add_session(target["pane_id"])
             next_refresh_at = 0.0
-        elif action == "close_pane" and target is not None and target["kind"] == "pane":
-            subprocess.run(["tmux", "kill-pane", "-t", target["pane_id"]], check=False)
+        elif action == "close_pane" and target is not None:
+            cur_idx = next((i for i, r in enumerate(pane_rows) if r["pane_id"] == target["pane_id"]), 0)
+            if cur_idx > 0:
+                selected_pane_id = pane_rows[cur_idx - 1]["pane_id"]
+            elif len(pane_rows) > 1:
+                selected_pane_id = pane_rows[1]["pane_id"]
+            if target["kind"] == "pane":
+                subprocess.run(["tmux", "kill-pane", "-t", target["pane_id"]], check=False)
+            elif target["kind"] == "window":
+                session_windows = [r for r in rows if r["kind"] == "window" and r.get("session") == target["session"]]
+                if len(session_windows) <= 1:
+                    subprocess.run(["tmux", "kill-session", "-t", target["session"]], check=False)
+                else:
+                    subprocess.run(["tmux", "kill-window", "-t", target["window"]], check=False)
             next_refresh_at = 0.0
         elif action == "close":
             close_sidebar()

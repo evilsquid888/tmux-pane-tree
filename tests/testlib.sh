@@ -552,6 +552,12 @@ PY
   switch-client)
     printf 'switch-client %s\n' "$*" >> "$data_dir/commands.log"
     ;;
+  kill-window)
+    printf 'kill-window %s\n' "$*" >> "$data_dir/commands.log"
+    ;;
+  kill-session)
+    printf 'kill-session %s\n' "$*" >> "$data_dir/commands.log"
+    ;;
   new-window)
     printf 'new-window %s\n' "$*" >> "$data_dir/commands.log"
     ;;
