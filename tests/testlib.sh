@@ -66,12 +66,12 @@ fake_tmux_register_pane() {
   local pane_current_command="${6:-$5}"
   local window_index="${7:-0}"
   cat > "$TEST_TMUX_DATA_DIR/pane_${pane_id//%/}.meta" <<EOF
-session_name=$session_name
-window_id=$window_id
-window_name=$window_name
-pane_title=$pane_title
-pane_current_command=$pane_current_command
-window_index=$window_index
+session_name='$session_name'
+window_id='$window_id'
+window_name='$window_name'
+pane_title='$pane_title'
+pane_current_command='$pane_current_command'
+window_index='$window_index'
 EOF
 }
 

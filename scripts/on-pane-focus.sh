@@ -29,6 +29,12 @@ if [ -n "$pane_id" ]; then
           signal_sidebar_refresh
           ;;
       esac
+    elif printf '%s\n' "$pane_title" | grep -qE '(: (done|needs-input|error))\s*$'; then
+      tmp_file="$(mktemp "$state_dir/.pane-state.XXXXXX")"
+      printf '{"pane_id":"%s","app":"claude","status":"idle","updated_at":%d}\n' \
+        "$pane_id" "$(date +%s)" > "$tmp_file"
+      mv "$tmp_file" "$state_file"
+      signal_sidebar_refresh
     fi
   fi
 fi

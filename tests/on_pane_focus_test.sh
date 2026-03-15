@@ -57,3 +57,13 @@ printf '1\n' > "$TEST_TMUX_DATA_DIR/option__tmux_sidebar_enabled.txt"
 bash scripts/on-pane-focus.sh "%90" "@1"
 
 assert_file_not_contains "$TEST_TMUX_DATA_DIR/commands.log" 'set-option -g @tmux_sidebar_main_pane %90'
+
+fake_tmux_no_sidebar
+fake_tmux_register_pane "%5" "work" "@1" "editor" "● project: done" "2.1.76"
+printf '1\n' > "$TEST_TMUX_DATA_DIR/option__tmux_sidebar_enabled.txt"
+rm -f "$TMUX_SIDEBAR_STATE_DIR/pane-%5.json"
+
+bash scripts/on-pane-focus.sh "%5" "@1"
+
+assert_file_contains "$TMUX_SIDEBAR_STATE_DIR/pane-%5.json" '"status":"idle"'
+assert_file_contains "$TMUX_SIDEBAR_STATE_DIR/pane-%5.json" '"app":"claude"'
