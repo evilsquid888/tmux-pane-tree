@@ -75,10 +75,9 @@ tmux kill-session -t sidebar-test
 
 To manually verify changes without install-live:
 ```bash
-# Source the plugin directly in a test session
+# Run the plugin entry point directly
 tmux new-session -d -s sidebar-test
-tmux source-file sidebar.tmux   # won't work — uses #{d:current_file}
-# Use install-live.sh instead, it patches paths
+bash sidebar.tmux
 ```
 
 ### After any code change
@@ -118,8 +117,8 @@ tmux source-file sidebar.tmux   # won't work — uses #{d:current_file}
 
 ### tmux plugin conventions
 
-- `sidebar.tmux` has no shebang — tmux sources it directly
-- Use `#{d:current_file}` for relative paths in hook registrations
+- `sidebar.tmux` is a bash script with shebang — TPM executes it directly
+- Use `CURRENT_DIR="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"` for path resolution
 - Hook indices (e.g. `[198]`) are namespaced to avoid collisions with other plugins
 - State stored in tmux global options prefixed `@tmux_sidebar_`
 - Per-window state keyed by window ID: `@tmux_sidebar_{suffix}_w{ID}`

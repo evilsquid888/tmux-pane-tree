@@ -91,16 +91,18 @@ Then `tmux source-file ~/.tmux.conf`.
 
 ### Navigation (inside the sidebar)
 
-| Key          | Action                           |
-| ------------ | -------------------------------- |
-| `j` / `Down` | Move selection down              |
-| `k` / `Up`   | Move selection up                |
-| `Enter`      | Jump to the selected pane        |
-| `aw`         | Add a window (prompts for name)  |
-| `as`         | Add a session (prompts for name) |
-| `x`          | Close the selected pane          |
-| `q`          | Close the sidebar                |
-| `Ctrl+l`     | Return focus to the main pane    |
+| Key            | Action                           |
+| -------------- | -------------------------------- |
+| `j` / `Down`   | Move selection down              |
+| `k` / `Up`     | Move selection up                |
+| `Enter`        | Jump to the selected pane        |
+| Mouse click    | Jump to clicked session/window/pane |
+| Mouse scroll   | Scroll the tree view             |
+| `aw`           | Add a window (prompts for name)  |
+| `as`           | Add a session (prompts for name) |
+| `x`            | Close the selected pane          |
+| `q`            | Close the sidebar                |
+| `Ctrl+l`       | Return focus to the main pane    |
 
 New windows and sessions are inserted relative to the currently selected row.
 Closing the last pane in a window removes the window; the last window removes
@@ -162,18 +164,29 @@ set -g @tmux_sidebar_toggle_key  b    # default: t
 set -g @tmux_sidebar_focus_key   B    # default: T
 ```
 
+### Hide panes
+
+Collapse the tree to show only sessions and windows — useful if you have many
+windows and panes and want a shorter list. Panes with active agent status
+badges are still shown:
+
+```tmux
+set -g @tmux_sidebar_hide_panes on    # default: off
+```
+
 ### Quick reference
 
-| Option                               | Default | Description                      |
-| ------------------------------------ | :-----: | -------------------------------- |
-| `@tmux_sidebar_width`                |  `25`   | Sidebar column width             |
-| `@tmux_sidebar_focus_on_open`        |   `1`   | Focus sidebar when toggled open  |
-| `@tmux_sidebar_session_order`        |    —    | Comma-separated session ordering |
-| `@tmux_sidebar_add_window_shortcut`  |  `aw`   | Shortcut to add a window         |
-| `@tmux_sidebar_add_session_shortcut` |  `as`   | Shortcut to add a session        |
-| `@tmux_sidebar_close_pane_shortcut`  |   `x`   | Shortcut to close selected pane  |
-| `@tmux_sidebar_toggle_key`           |   `t`   | Tmux key to toggle sidebar       |
-| `@tmux_sidebar_focus_key`            |   `T`   | Tmux key to focus sidebar        |
+| Option                               | Default | Description                                  |
+| ------------------------------------ | :-----: | -------------------------------------------- |
+| `@tmux_sidebar_width`                |  `25`   | Sidebar column width                         |
+| `@tmux_sidebar_focus_on_open`        |   `1`   | Focus sidebar when toggled open              |
+| `@tmux_sidebar_session_order`        |    —    | Comma-separated session ordering             |
+| `@tmux_sidebar_hide_panes`           |  `off`  | Hide panes without agent status              |
+| `@tmux_sidebar_add_window_shortcut`  |  `aw`   | Shortcut to add a window                     |
+| `@tmux_sidebar_add_session_shortcut` |  `as`   | Shortcut to add a session                    |
+| `@tmux_sidebar_close_pane_shortcut`  |   `x`   | Shortcut to close selected pane              |
+| `@tmux_sidebar_toggle_key`           |   `t`   | Tmux key to toggle sidebar                   |
+| `@tmux_sidebar_focus_key`            |   `T`   | Tmux key to focus sidebar                    |
 
 | Environment variable     | Description                                                                                    |
 | ------------------------ | ---------------------------------------------------------------------------------------------- |
@@ -194,7 +207,35 @@ Agents report their status through `scripts/update-pane-state.sh`:
 
 Supported `--status` values: `running`, `needs-input`, `done`, `error`, `idle`.
 
-### Agent hook examples
+### Claude Code
+
+Add the following hooks to `~/.claude/settings.json`. Each hook fires
+`scripts/hook-claude.sh` which maps Claude lifecycle events to sidebar
+badge states. Adjust the path if your plugin directory differs.
+
+```json
+{
+  "hooks": {
+    "SessionStart": [{"matcher": "", "hooks": [{"type": "command", "command": "~/.tmux/plugins/tmux-sidebar/scripts/hook-claude.sh", "timeout": 10}]}],
+    "UserPromptSubmit": [{"matcher": "", "hooks": [{"type": "command", "command": "~/.tmux/plugins/tmux-sidebar/scripts/hook-claude.sh", "timeout": 10, "async": true}]}],
+    "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "~/.tmux/plugins/tmux-sidebar/scripts/hook-claude.sh", "timeout": 10, "async": true}]}],
+    "Notification": [{"matcher": "", "hooks": [{"type": "command", "command": "~/.tmux/plugins/tmux-sidebar/scripts/hook-claude.sh", "timeout": 10, "async": true}]}],
+    "PermissionRequest": [{"matcher": "", "hooks": [{"type": "command", "command": "~/.tmux/plugins/tmux-sidebar/scripts/hook-claude.sh", "timeout": 10, "async": true}]}],
+    "SessionEnd": [{"matcher": "", "hooks": [{"type": "command", "command": "~/.tmux/plugins/tmux-sidebar/scripts/hook-claude.sh", "timeout": 10, "async": true}]}],
+    "SubagentStart": [{"matcher": "", "hooks": [{"type": "command", "command": "~/.tmux/plugins/tmux-sidebar/scripts/hook-claude.sh", "timeout": 10, "async": true}]}]
+  }
+}
+```
+
+### Codex
+
+Add a `notify` line to `~/.codex/config.toml`:
+
+```toml
+notify = ["bash", "~/.tmux/plugins/tmux-sidebar/scripts/hook-codex.sh"]
+```
+
+### Other agents / manual usage
 
 Ready-to-use hook wrappers live in `examples/`:
 
@@ -233,10 +274,9 @@ bash scripts/install-live.sh
 ```
 
 This copies the working tree into `~/.config/tmux/plugins/tmux-sidebar`,
-patches `#{d:current_file}` references, re-sources the tmux config, and
-respawns every open sidebar pane. It also keeps agent hooks in
-`~/.claude/settings.json` and `~/.codex/config.toml` pointing at the installed
-copy.
+re-sources the tmux config, respawns every open sidebar pane, and keeps
+agent hooks in `~/.claude/settings.json` and `~/.codex/config.toml`
+pointing at the installed copy.
 
 If you only changed `sidebar-ui.py` and want to skip the full install, you can
 respawn the sidebar panes directly:
