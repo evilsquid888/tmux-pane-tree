@@ -12,25 +12,18 @@ mkdir -p "$(dirname "$PLUGIN_DST")"
 rm -rf "$PLUGIN_DST"
 mkdir -p "$PLUGIN_DST"
 cp -R "$PLUGIN_SRC"/. "$PLUGIN_DST"/
-chmod +x "$PLUGIN_DST"/scripts/*.sh "$PLUGIN_DST"/examples/*.sh
-PLUGIN_DST="$PLUGIN_DST" python3 - <<'PY'
-import os
-from pathlib import Path
-
-plugin_dir = os.environ["PLUGIN_DST"]
-path = Path(plugin_dir) / "sidebar.tmux"
-text = path.read_text()
-text = text.replace("#{d:current_file}", plugin_dir)
-path.write_text(text)
-PY
+chmod +x "$PLUGIN_DST"/sidebar.tmux "$PLUGIN_DST"/scripts/*.sh "$PLUGIN_DST"/examples/*.sh
 
 cp "$TMUX_CONF" "$TMUX_CONF.bak-tmux-sidebar-$TIMESTAMP"
 python3 - <<'PY'
 from pathlib import Path
 
 path = Path.home() / ".config/tmux/tmux.conf"
-line = 'if-shell "test -f ~/.config/tmux/plugins/tmux-sidebar/sidebar.tmux" "source-file ~/.config/tmux/plugins/tmux-sidebar/sidebar.tmux"'
+old_line = 'if-shell "test -f ~/.config/tmux/plugins/tmux-sidebar/sidebar.tmux" "source-file ~/.config/tmux/plugins/tmux-sidebar/sidebar.tmux"'
+line = "run-shell '~/.config/tmux/plugins/tmux-sidebar/sidebar.tmux'"
 text = path.read_text()
+text = text.replace(old_line + "\n", "")
+text = text.replace("\n" + old_line, "")
 text = text.replace(line + "\n", "")
 text = text.replace("\n" + line, "")
 tpm_line = "run '~/.config/tmux/plugins/tpm/tpm'"
