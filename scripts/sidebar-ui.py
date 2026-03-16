@@ -268,11 +268,11 @@ def effective_pane_status(command: str, title: str, state: dict | None) -> str:
 
     if status == "idle":
         return ""
-    if status in ("running", "needs-input", "error", "done"):
-        return status
     title_status = claude_title_status(title)
     if title_status:
         return title_status
+    if status in ("running", "needs-input", "error", "done"):
+        return status
     return ""
 
 
