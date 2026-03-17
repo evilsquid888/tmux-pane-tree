@@ -99,6 +99,7 @@ Then `tmux source-file ~/.tmux.conf`.
 | `aw`         | Add a window (prompts for name)  |
 | `as`         | Add a session (prompts for name) |
 | `x`          | Close the selected pane          |
+| `p`          | Toggle hide-panes mode           |
 | `q`          | Close the sidebar                |
 | `Ctrl+l`     | Return focus to the main pane    |
 
@@ -185,6 +186,21 @@ set -g @tmux_sidebar_badge_done         "✅"   # default: ✅
 set -g @tmux_sidebar_badge_error        "❌"   # default: ❌
 ```
 
+### Colors
+
+Override the colors used for each element type in the tree:
+
+```tmux
+set -g @tmux_sidebar_color_session "#1a2f4e"
+set -g @tmux_sidebar_color_window  "#4a5568"
+set -g @tmux_sidebar_color_pane    "#a0aec0"
+```
+
+Values are hex color codes. When not set, colors are derived from your tmux
+theme — session color falls back to `pane-active-border-style` foreground,
+window color to `pane-border-style` foreground, and pane color to
+`status-style` foreground.
+
 ### Key overrides
 
 Override the default tmux keybindings for toggle and focus:
@@ -210,6 +226,9 @@ set -g @tmux_sidebar_focus_key   B    # default: T
 | `@tmux_sidebar_badge_needs_input`    |  `❓`   | Badge for needs-input status     |
 | `@tmux_sidebar_badge_done`           |  `✅`   | Badge for done status            |
 | `@tmux_sidebar_badge_error`          |  `❌`   | Badge for error status           |
+| `@tmux_sidebar_color_session`        |    —    | Session name color (hex)         |
+| `@tmux_sidebar_color_window`         |    —    | Window name color (hex)          |
+| `@tmux_sidebar_color_pane`           |    —    | Pane name color (hex)            |
 | `@tmux_sidebar_toggle_key`           |   `t`   | Tmux key to toggle sidebar       |
 | `@tmux_sidebar_focus_key`            |   `T`   | Tmux key to focus sidebar        |
 
