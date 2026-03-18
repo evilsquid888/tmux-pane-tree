@@ -70,7 +70,7 @@ git clone https://github.com/sandudorogan/tmux-sidebar \
 Source it in your tmux config:
 
 ```tmux
-run-shell ~/.tmux/plugins/tmux-sidebar/sidebar.tmux
+source-file ~/.tmux/plugins/tmux-sidebar/sidebar.tmux
 ```
 
 Then `tmux source-file ~/.tmux.conf`.

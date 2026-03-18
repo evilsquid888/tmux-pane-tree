@@ -79,8 +79,7 @@ To manually verify changes without install-live:
 ```bash
 # Source the plugin directly in a test session
 tmux new-session -d -s sidebar-test
-tmux source-file sidebar.tmux   # won't work — uses #{d:current_file}
-# Use install-live.sh instead, it patches paths
+tmux source-file sidebar.tmux
 ```
 
 ### After any code change

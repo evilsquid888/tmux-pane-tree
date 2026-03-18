@@ -63,7 +63,7 @@ work|@1|codex-aarch64-apple-darwin|%33|codex-aarch64-apple-darwin|codex --full-a
 EOF
 rm -f "$TMUX_SIDEBAR_STATE_DIR"/pane-*.json
 
-output="$(python3 scripts/sidebar-ui.py --dump-render 2>&1)"
+output="$(python3 scripts/ui/sidebar-ui.py --dump-render 2>&1)"
 
 window_line="$(printf '%s\n' "$output" | grep -E '^\s+[├└]─' | sed -n '2p')"
 assert_contains "$window_line" 'codex'
@@ -74,7 +74,7 @@ work|@1|env|%34|env|codex --full-auto|1
 EOF
 rm -f "$TMUX_SIDEBAR_STATE_DIR"/pane-*.json
 
-output="$(python3 scripts/sidebar-ui.py --dump-render 2>&1)"
+output="$(python3 scripts/ui/sidebar-ui.py --dump-render 2>&1)"
 
 window_line="$(printf '%s\n' "$output" | grep -E '^\s+[├└]─' | sed -n '2p')"
 assert_contains "$window_line" 'codex'

@@ -21,7 +21,7 @@ from pathlib import Path
 
 path = Path.home() / ".config/tmux/tmux.conf"
 old_line = 'if-shell "test -f ~/.config/tmux/plugins/tmux-sidebar/sidebar.tmux" "source-file ~/.config/tmux/plugins/tmux-sidebar/sidebar.tmux"'
-line = "run-shell '~/.config/tmux/plugins/tmux-sidebar/sidebar.tmux'"
+	line = "source-file ~/.config/tmux/plugins/tmux-sidebar/sidebar.tmux"
 text = path.read_text()
 text = text.replace(old_line + "\n", "")
 text = text.replace("\n" + old_line, "")
