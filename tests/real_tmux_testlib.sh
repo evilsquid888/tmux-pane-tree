@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/tmux-sidebar-real-tests.XXXXXX")"
+TEST_TMP="$(mktemp -d "/tmp/tmux-sidebar-real-tests.XXXXXX")"
 REAL_TMUX_SOCKET="tmux-sidebar-real-$$"
+REAL_TMUX_SOCKET_PATH="$TEST_TMP/$REAL_TMUX_SOCKET.sock"
 REAL_TMUX_STATE_DIR="$TEST_TMP/state"
 REPO_ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 
-trap 'tmux -L "$REAL_TMUX_SOCKET" kill-server 2>/dev/null || true; rm -rf "$TEST_TMP"' EXIT
+trap 'tmux -S "$REAL_TMUX_SOCKET_PATH" kill-server 2>/dev/null || true; rm -rf "$TEST_TMP"' EXIT
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -31,7 +32,7 @@ assert_eq() {
 }
 
 real_tmux() {
-  tmux -L "$REAL_TMUX_SOCKET" -f /dev/null "$@"
+  tmux -S "$REAL_TMUX_SOCKET_PATH" -f /dev/null "$@"
 }
 
 real_tmux_start_server() {
