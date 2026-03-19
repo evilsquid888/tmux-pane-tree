@@ -5,7 +5,7 @@ TEST_TMP="$(mktemp -d "/tmp/tmux-sidebar-real-tests.XXXXXX")"
 REAL_TMUX_SOCKET="tmux-sidebar-real-$$"
 REAL_TMUX_SOCKET_PATH="$TEST_TMP/$REAL_TMUX_SOCKET.sock"
 REAL_TMUX_STATE_DIR="$TEST_TMP/state"
-REPO_ROOT="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+REPO_ROOT="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 trap 'tmux -S "$REAL_TMUX_SOCKET_PATH" kill-server 2>/dev/null || true; rm -rf "$TEST_TMP"' EXIT
 

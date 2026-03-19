@@ -3,7 +3,7 @@ set -euo pipefail
 
 . "$(dirname "$0")/testlib.sh"
 
-PLUGIN_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+PLUGIN_DIR="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 # Test 1: No overrides set -> no bind/unbind commands
 fake_tmux_no_sidebar
