@@ -50,8 +50,11 @@ assert_contains "$build_capture" 'ops'
 
 real_tmux select-pane -t "$sidebar_pane_id"
 client_log="$TEST_TMP/client.log"
-client_pid="$(real_tmux_attach_session_client work "$client_log")"
-client_tty="$(real_tmux_wait_for_client_tty)"
+real_tmux_attach_session_client_info work "$client_log"
+client_pid="$REAL_TMUX_CLIENT_PID"
+client_tty="$REAL_TMUX_CLIENT_TTY"
+attached_client_tty="$(real_tmux_wait_for_client_tty)"
+assert_eq "$attached_client_tty" "$client_tty"
 python3 - <<PY
 from pathlib import Path
 Path("$client_tty").write_bytes(b"m")

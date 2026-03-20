@@ -14,21 +14,15 @@ session_name="$(real_tmux display-message -p -t work:editor '#{session_name}')"
 assert_eq "$session_name" 'work'
 
 client_log="$TEST_TMP/client.log"
-linux_command="$(
-  REAL_TMUX_SCRIPT_PLATFORM=Linux \
-    real_tmux_script_command "$client_log" \
-      tmux -S /tmp/test.sock -f /dev/null attach-session -t work
-)"
-assert_contains "$linux_command" 'script -q'
-assert_contains "$linux_command" "$client_log -- tmux -S /tmp/test.sock -f /dev/null attach-session -t work"
-
-darwin_command="$(
-  REAL_TMUX_SCRIPT_PLATFORM=Darwin \
-    real_tmux_script_command "$client_log" \
-      tmux -S /tmp/test.sock -f /dev/null attach-session -t work
-)"
-assert_contains "$darwin_command" 'script -q'
-assert_contains "$darwin_command" "$client_log tmux -S /tmp/test.sock -f /dev/null attach-session -t work"
-case "$darwin_command" in
-  *"$client_log -- tmux"*) fail 'expected Darwin script command to omit [--]' ;;
+real_tmux_attach_session_client_info work "$client_log"
+client_pid="$REAL_TMUX_CLIENT_PID"
+client_tty="$REAL_TMUX_CLIENT_TTY"
+[ -n "$client_pid" ] || fail 'expected attached client pid'
+case "$client_tty" in
+  /dev/*) ;;
+  *) fail "expected attached client tty, got [$client_tty]" ;;
 esac
+
+attached_client_tty="$(real_tmux_wait_for_client_tty)"
+assert_eq "$attached_client_tty" "$client_tty"
+kill "$client_pid" 2>/dev/null || true

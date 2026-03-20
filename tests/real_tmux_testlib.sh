@@ -6,6 +6,8 @@ REAL_TMUX_SOCKET="tmux-sidebar-real-$$"
 REAL_TMUX_SOCKET_PATH="$TEST_TMP/$REAL_TMUX_SOCKET.sock"
 REAL_TMUX_STATE_DIR="$TEST_TMP/state"
 REPO_ROOT="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REAL_TMUX_CLIENT_PID=""
+REAL_TMUX_CLIENT_TTY=""
 
 trap 'tmux -S "$REAL_TMUX_SOCKET_PATH" kill-server 2>/dev/null || true; rm -rf "$TEST_TMP"' EXIT
 
@@ -41,43 +43,109 @@ real_tmux_shell_command() {
   printf '%s\n' "${shell_command% }"
 }
 
-real_tmux_script_platform() {
-  printf '%s\n' "${REAL_TMUX_SCRIPT_PLATFORM:-$(uname -s)}"
-}
+real_tmux_attach_session_client_info() {
+  local session_name="$1"
+  local log_file="$2"
+  local token="$$.$RANDOM"
+  local info_file="$TEST_TMP/client-info.$token"
+  local attempts=100
+  local client_tty=""
+  local _attempt
 
-real_tmux_script_command() {
-  local log_file="$1"
-  shift
-  local script_platform=""
-  local shell_command=""
+  python3 - "$REAL_TMUX_SOCKET_PATH" "$session_name" "$log_file" "$info_file" <<'PY' &
+from __future__ import annotations
 
-  script_platform="$(real_tmux_script_platform)"
-  case "$script_platform" in
-    Darwin)
-      printf -v shell_command '%q ' script -q "$log_file" "$@"
-      ;;
-    *)
-      printf -v shell_command '%q ' script -q "$log_file" -- "$@"
-      ;;
-  esac
-  printf '%s\n' "${shell_command% }"
+import os
+import pty
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+socket_path, session_name, log_file, info_file = sys.argv[1:5]
+
+stop = False
+child: subprocess.Popen[bytes] | None = None
+master_fd = -1
+
+
+def handle_signal(signum: int, frame: object) -> None:
+    global stop
+    stop = True
+    if child is not None and child.poll() is None:
+        child.terminate()
+
+
+signal.signal(signal.SIGTERM, handle_signal)
+signal.signal(signal.SIGINT, handle_signal)
+
+master_fd, slave_fd = pty.openpty()
+slave_tty = os.ttyname(slave_fd)
+os.set_blocking(master_fd, False)
+
+with open(log_file, "ab", buffering=0) as log_handle:
+    child = subprocess.Popen(
+        ["tmux", "-S", socket_path, "-f", "/dev/null", "attach-session", "-t", session_name],
+        stdin=slave_fd,
+        stdout=slave_fd,
+        stderr=slave_fd,
+        start_new_session=True,
+        close_fds=True,
+    )
+    os.close(slave_fd)
+    Path(info_file).write_text(slave_tty)
+
+    try:
+        while True:
+            if stop and child.poll() is not None:
+                break
+            try:
+                data = os.read(master_fd, 4096)
+            except BlockingIOError:
+                data = b""
+            except OSError:
+                data = b""
+            if data:
+                log_handle.write(data)
+                continue
+            if child.poll() is not None:
+                break
+            time.sleep(0.05)
+    finally:
+        if child.poll() is None:
+            child.terminate()
+            try:
+                child.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                child.kill()
+                child.wait()
+        if master_fd >= 0:
+            os.close(master_fd)
+PY
+  local wrapper_pid="$!"
+
+  for _attempt in $(seq 1 "$attempts"); do
+    if [ -f "$info_file" ]; then
+      client_tty="$(<"$info_file")"
+      rm -f "$info_file"
+      REAL_TMUX_CLIENT_PID="$wrapper_pid"
+      REAL_TMUX_CLIENT_TTY="$client_tty"
+      return 0
+    fi
+    if ! kill -0 "$wrapper_pid" 2>/dev/null; then
+      break
+    fi
+    sleep 0.05
+  done
+
+  rm -f "$info_file"
+  fail "tmux client helper did not report tty for session [$session_name]"
 }
 
 real_tmux_attach_session_client() {
-  local session_name="$1"
-  local log_file="$2"
-  local script_platform=""
-
-  script_platform="$(real_tmux_script_platform)"
-  case "$script_platform" in
-    Darwin)
-      script -q "$log_file" tmux -S "$REAL_TMUX_SOCKET_PATH" -f /dev/null attach-session -t "$session_name" >/dev/null 2>&1 &
-      ;;
-    *)
-      script -q "$log_file" -- tmux -S "$REAL_TMUX_SOCKET_PATH" -f /dev/null attach-session -t "$session_name" >/dev/null 2>&1 &
-      ;;
-  esac
-  printf '%s\n' "$!"
+  real_tmux_attach_session_client_info "$@"
+  printf '%s\n' "$REAL_TMUX_CLIENT_PID"
 }
 
 real_tmux_run_shell_capture() {
