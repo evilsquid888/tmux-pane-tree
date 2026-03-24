@@ -54,6 +54,7 @@ without leaving the sidebar.
 
 ```tmux
 set -g @plugin 'sandudorogan/tmux-sidebar'
+set -g @tmux_sidebar_install_agent_hooks 1   # optional
 ```
 
 Reload tmux and press `prefix + I`.
@@ -241,6 +242,14 @@ set -g @tmux_sidebar_toggle_key  b    # default: t
 set -g @tmux_sidebar_focus_key   B    # default: T
 ```
 
+### Agent hook install
+
+Enable automatic hook setup when the plugin loads:
+
+```tmux
+set -g @tmux_sidebar_install_agent_hooks 1   # default: 0
+```
+
 ### Quick reference
 
 | Option                                | Default | Description                      |
@@ -270,6 +279,7 @@ set -g @tmux_sidebar_focus_key   B    # default: T
 | `@tmux_sidebar_color_pane`            |    —    | Pane name color (hex)            |
 | `@tmux_sidebar_toggle_key`            |   `t`   | Tmux key to toggle sidebar       |
 | `@tmux_sidebar_focus_key`             |   `T`   | Tmux key to focus sidebar        |
+| `@tmux_sidebar_install_agent_hooks`   |   `0`   | Install Claude/Codex/OpenCode hooks on load |
 
 | Environment variable     | Description                                                                                    |
 | ------------------------ | ---------------------------------------------------------------------------------------------- |
@@ -279,8 +289,35 @@ set -g @tmux_sidebar_focus_key   B    # default: T
 ## Hook Integration
 
 Agent badges are written through
-`scripts/features/state/update-pane-state.sh`. For custom integrations, inspect
-`examples/` and `scripts/features/hooks/`.
+`scripts/features/state/update-pane-state.sh`.
+
+### Quick setup
+
+Choose one setup path:
+
+- TPM: set `@tmux_sidebar_install_agent_hooks 1` before installing or reloading
+  the plugin.
+- Manual install: run
+  `bash ~/.tmux/plugins/tmux-sidebar/scripts/features/hooks/install-agent-hooks.sh`
+
+The installer updates:
+
+- `~/.claude/settings.json`
+- `~/.codex/config.toml`
+- `~/.config/opencode/plugins/tmux-sidebar.js`
+
+It also creates timestamped backups before changing existing files.
+
+### Manual wiring
+
+If you prefer to edit configs yourself, point each tool at the installed hook
+wrappers under `scripts/features/hooks/`:
+
+- Claude Code: `hook-claude.sh`
+- Codex: `hook-codex.sh`
+- OpenCode: `hook-opencode.sh`
+
+Ready-to-copy examples live in `examples/`.
 
 ## Requirements
 
