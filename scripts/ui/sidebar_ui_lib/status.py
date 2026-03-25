@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from .core import run_tmux, tmux_option
+from .core import run_tmux, tmux_option_value
 
 
 SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
@@ -32,11 +32,11 @@ DEFAULT_BADGES: dict[str, str] = {
     "done": "✅",
     "error": "❌",
 }
-BADGE_OPTIONS: dict[str, str] = {
-    "running": "@tmux_sidebar_badge_running",
-    "needs-input": "@tmux_sidebar_badge_needs_input",
-    "done": "@tmux_sidebar_badge_done",
-    "error": "@tmux_sidebar_badge_error",
+BADGE_OPTION_SUFFIXES: dict[str, str] = {
+    "running": "badge_running",
+    "needs-input": "badge_needs_input",
+    "done": "badge_done",
+    "error": "badge_error",
 }
 
 _badge_cache: dict[str, str] | None = None
@@ -47,8 +47,8 @@ def configured_badges() -> dict[str, str]:
     if _badge_cache is not None:
         return _badge_cache
     badges = dict(DEFAULT_BADGES)
-    for status, option in BADGE_OPTIONS.items():
-        custom = tmux_option(option)
+    for status, suffix in BADGE_OPTION_SUFFIXES.items():
+        custom = tmux_option_value(suffix)
         if custom:
             badges[status] = custom
     _badge_cache = badges

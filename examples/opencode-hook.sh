@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PLUGIN_DIR="${TMUX_SIDEBAR_PLUGIN_DIR:-$HOME/.tmux/plugins/tmux-sidebar}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/../scripts/core/lib.sh"
+
+# TMUX_PANE_TREE_PLUGIN_DIR overrides TMUX_SIDEBAR_PLUGIN_DIR; see scripts/core/lib.sh pane_tree_plugin_dir
+PLUGIN_DIR="$(pane_tree_plugin_dir "$HOME/.config/tmux/plugins/tmux-pane-tree")"
 export OPENCODE_EVENT="${OPENCODE_EVENT:-}"
 export OPENCODE_STATUS="${OPENCODE_STATUS:-}"
 export OPENCODE_MESSAGE="${OPENCODE_MESSAGE:-}"

@@ -3,6 +3,7 @@ set -euo pipefail
 
 TEST_TMP="$(mktemp -d "${TMPDIR:-/tmp}/tmux-sidebar-tests.XXXXXX")"
 trap 'rm -rf "$TEST_TMP"' EXIT
+unset TMUX_PANE_TREE_STATE_DIR
 
 output=""
 TEST_BIN="$TEST_TMP/bin"
