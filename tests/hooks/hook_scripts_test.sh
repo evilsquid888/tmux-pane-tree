@@ -24,6 +24,8 @@ chmod +x "$capture_peon"
 
 export TMUX_PANE="%7"
 export TMUX_SIDEBAR_UPDATE_HELPER="$capture_helper"
+export TMUX_PANE_TREE_STATE_DIR="$TEST_TMP/hook-state"
+mkdir -p "$TMUX_PANE_TREE_STATE_DIR"
 fake_tmux_no_sidebar
 fake_tmux_register_pane "%7" "work" "@1" "editor" "bash"
 
@@ -84,6 +86,16 @@ export TEST_HOOK_CAPTURE="$TEST_TMP/codex-hook-tracked-complete.txt"
 rm -f "$TEST_HOOK_CAPTURE"
 printf '%s' '{"session_id":"worker-9","summary":"Finished delegated task"}' | bash scripts/features/hooks/hook-codex.sh agent-turn-complete
 [ ! -f "$TEST_HOOK_CAPTURE" ] || fail "codex tracked completion should be suppressed"
+
+export TEST_HOOK_CAPTURE="$TEST_TMP/codex-hook-tracked-status-complete.txt"
+rm -f "$TEST_HOOK_CAPTURE"
+printf '%s' '{"session_id":"worker-9","status":"completed","summary":"Finished delegated task"}' | bash scripts/features/hooks/hook-codex.sh
+[ ! -f "$TEST_HOOK_CAPTURE" ] || fail "codex tracked status completion should be suppressed"
+
+export TEST_HOOK_CAPTURE="$TEST_TMP/codex-hook-tracked-permission-prompt.txt"
+rm -f "$TEST_HOOK_CAPTURE"
+printf '%s' '{"session_id":"worker-9","notification_type":"permission_prompt","message":"Need approval"}' | bash scripts/features/hooks/hook-codex.sh
+[ ! -f "$TEST_HOOK_CAPTURE" ] || fail "codex tracked permission prompt should be suppressed"
 
 export TEST_HOOK_CAPTURE="$TEST_TMP/codex-hook-json-arg.txt"
 python3 - <<'PY'

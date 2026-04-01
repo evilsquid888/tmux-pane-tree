@@ -32,6 +32,12 @@ assert_eq "$(printf '%s\n' "$cursor_stop_completed_status" | sed -n '1p')" "done
 codex_permission_prompt_status="$(run_parser codex '{"notification_type":"permission_prompt","message":"Need approval"}')"
 assert_eq "$(printf '%s\n' "$codex_permission_prompt_status" | sed -n '1p')" "needs-input"
 
+codex_notification_metadata="$(run_metadata codex '{"session_id":"worker-1","notification_type":"permission_prompt","message":"Need approval"}')"
+assert_contains "$codex_notification_metadata" '"notification_type":"permission_prompt"'
+
+codex_status_metadata="$(run_metadata codex '{"session_id":"worker-2","status":"completed","summary":"Finished task"}')"
+assert_contains "$codex_status_metadata" '"status":"completed"'
+
 codex_positional_delegate="$(run_metadata codex '{"session_id":"abc","permission_mode":"delegate","summary":"Finished task"}' agent-turn-complete)"
 assert_contains "$codex_positional_delegate" '"event":"agent-turn-complete"'
 assert_contains "$codex_positional_delegate" '"session_id":"abc"'

@@ -40,6 +40,12 @@ assert_file_contains "$STATE_DIR/agent-hook-state.json" '"codex:worker-2":'
 assert_eq "suppress" "$(run_filter '{"app":"codex","event":"agent-turn-complete","session_id":"worker-1","permission_mode":"delegate","explicit_subagent_event":false,"delegate_session":true}')"
 assert_eq "suppress" "$(run_filter '{"app":"codex","event":"PermissionRequest","session_id":"worker-1","permission_mode":"delegate","explicit_subagent_event":false,"delegate_session":true}')"
 
+assert_eq "allow" "$(run_filter_from_metadata codex task_started '{"session_id":"worker-3","permission_mode":"delegate","summary":"Starting delegated task"}')"
+assert_eq "suppress" "$(run_filter_from_metadata codex '' '{"session_id":"worker-3","status":"completed","summary":"Finished delegated task"}')"
+
+assert_eq "allow" "$(run_filter_from_metadata codex task_started '{"session_id":"worker-4","permission_mode":"delegate","summary":"Starting delegated task"}')"
+assert_eq "suppress" "$(run_filter_from_metadata codex '' '{"session_id":"worker-4","notification_type":"permission_prompt","message":"Need approval"}')"
+
 CONCURRENT_STATE_DIR="$TEST_TMP/concurrent-state"
 mkdir -p "$CONCURRENT_STATE_DIR"
 

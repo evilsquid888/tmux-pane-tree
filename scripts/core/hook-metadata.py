@@ -28,6 +28,8 @@ def main() -> None:
         event = str(os.environ.get("CLAUDE_HOOK_EVENT_NAME") or "").strip()
     session_id = str(data.get("session_id") or data.get("conversation_id") or "").strip()
     permission_mode = str(data.get("permission_mode") or "").strip()
+    notification_type = str(data.get("notification_type") or "").strip()
+    status = str(data.get("status") or data.get("state") or "").strip()
     explicit_subagent_event = event in {"SubagentStart", "SubagentStop", "subagentStart", "subagentStop"}
     delegate_session = app == "codex" and permission_mode in {"delegate", "dangerouslySkipPermissions"}
 
@@ -38,6 +40,8 @@ def main() -> None:
                 "event": event,
                 "session_id": session_id,
                 "permission_mode": permission_mode,
+                "notification_type": notification_type,
+                "status": status,
                 "explicit_subagent_event": explicit_subagent_event,
                 "delegate_session": delegate_session,
             },

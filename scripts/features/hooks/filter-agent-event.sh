@@ -95,8 +95,8 @@ def write_state(path: Path, state: dict[str, dict[str, int]]) -> None:
             pass
 
 
-def classify_event(event: str) -> str:
-    normalized = normalize_event(event)
+def classify_event(metadata: dict[str, Any]) -> str:
+    normalized = normalize_event(str(metadata.get("event") or ""))
     if normalized in {"subagentstart", "subagentstop"}:
         return "subagent"
     if normalized in {
@@ -121,6 +121,22 @@ def classify_event(event: str) -> str:
         "permissionrequest",
     }:
         return "needs-input"
+
+    if str(metadata.get("app") or "").strip().lower() == "codex":
+        notification_type = str(metadata.get("notification_type") or "").strip().lower()
+        if notification_type == "permission_prompt":
+            return "needs-input"
+
+        status = str(metadata.get("status") or "").strip().lower().replace("_", "-")
+        if status in {
+            "complete",
+            "completed",
+            "done",
+            "finished",
+            "stopped",
+        }:
+            return "done"
+
     return ""
 
 
@@ -146,7 +162,7 @@ delegate_session = bool(metadata.get("delegate_session"))
 permission_mode = str(metadata.get("permission_mode") or "").strip().lower()
 
 state_path = Path(os.environ["HOOK_SESSION_STATE_FILE"])
-event_kind = classify_event(event)
+event_kind = classify_event(metadata)
 delegate_session = delegate_session or permission_mode in {"delegate", "dangerouslyskippermissions"}
 
 with with_locked_state(state_path):
