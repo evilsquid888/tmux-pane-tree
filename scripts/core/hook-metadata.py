@@ -20,9 +20,10 @@ def load_payload(raw_payload: str) -> dict[str, Any]:
 
 def main() -> None:
     app = str(sys.argv[1] if len(sys.argv) > 1 else "").strip()
+    fallback_event = str(sys.argv[2] if len(sys.argv) > 2 else "").strip()
     data = load_payload(os.environ.get("HOOK_PAYLOAD", ""))
 
-    event = str(data.get("hook_event_name") or data.get("event") or data.get("type") or "").strip()
+    event = str(data.get("hook_event_name") or data.get("event") or data.get("type") or fallback_event).strip()
     if app == "claude" and not event:
         event = str(os.environ.get("CLAUDE_HOOK_EVENT_NAME") or "").strip()
     session_id = str(data.get("session_id") or data.get("conversation_id") or "").strip()

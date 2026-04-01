@@ -12,6 +12,15 @@ run_filter() {
   bash scripts/features/hooks/filter-agent-event.sh
 }
 
+run_filter_from_metadata() {
+  local app="$1"
+  local event="$2"
+  local payload="$3"
+  TMUX_PANE_TREE_STATE_DIR="$STATE_DIR" \
+  HOOK_METADATA_JSON="$(HOOK_PAYLOAD="$payload" python3 scripts/core/hook-metadata.py "$app" "$event")" \
+  bash scripts/features/hooks/filter-agent-event.sh
+}
+
 assert_eq "suppress" "$(run_filter '{"app":"claude","event":"SubagentStop","session_id":"sub-1","permission_mode":"","explicit_subagent_event":true,"delegate_session":false}')"
 assert_file_contains "$STATE_DIR/agent-hook-state.json" '"subagent_sessions":{"claude:sub-1":'
 assert_file_contains "$STATE_DIR/agent-hook-state.json" '"pending_parent_sessions":{}'
@@ -24,6 +33,9 @@ assert_eq "allow" "$(run_filter '{"app":"claude","event":"PermissionRequest","se
 assert_eq "allow" "$(run_filter '{"app":"codex","event":"agent-turn-start","session_id":"worker-1","permission_mode":"delegate","explicit_subagent_event":false,"delegate_session":true}')"
 assert_file_contains "$STATE_DIR/agent-hook-state.json" '"subagent_sessions":{"claude:sub-1":'
 assert_file_contains "$STATE_DIR/agent-hook-state.json" '"codex:worker-1":'
+
+assert_eq "suppress" "$(run_filter_from_metadata codex agent-turn-complete '{"session_id":"worker-2","permission_mode":"delegate","summary":"Finished task"}')"
+assert_file_contains "$STATE_DIR/agent-hook-state.json" '"codex:worker-2":'
 
 assert_eq "suppress" "$(run_filter '{"app":"codex","event":"agent-turn-complete","session_id":"worker-1","permission_mode":"delegate","explicit_subagent_event":false,"delegate_session":true}')"
 assert_eq "suppress" "$(run_filter '{"app":"codex","event":"PermissionRequest","session_id":"worker-1","permission_mode":"delegate","explicit_subagent_event":false,"delegate_session":true}')"
