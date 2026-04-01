@@ -1,9 +1,12 @@
 # tmux-pane-tree
 
-[![Tests](https://github.com/sandudorogan/tmux-pane-tree/actions/workflows/test.yml/badge.svg)](https://github.com/sandudorogan/tmux-pane-tree/actions/workflows/test.yml)
+[![Tests](https://github.com/evilsquid888/tmux-pane-tree/actions/workflows/test.yml/badge.svg)](https://github.com/evilsquid888/tmux-pane-tree/actions/workflows/test.yml)
 
 A tmux plugin that keeps a persistent, interactive session tree on the left
 side of every window, with live badges for `claude`, `codex`, `cursor`, `opencode`, `pi`, and `kiro`.
+
+> Fork of [sandudorogan/tmux-pane-tree](https://github.com/evilsquid888/tmux-pane-tree),
+> originally derived from [joemiller/tmux-sidebar](https://github.com/joemiller/tmux-sidebar).
 
 ```
   ┌─ Sidebar ────────────┬────────────────────────────────┐
@@ -56,7 +59,7 @@ transition. New installs should use `tmux-pane-tree` names.
 ### With TPM
 
 ```tmux
-set -g @plugin 'sandudorogan/tmux-pane-tree'
+set -g @plugin 'evilsquid888/tmux-pane-tree'
 set -g @tmux_pane_tree_install_agent_hooks 1   # optional
 ```
 
@@ -65,7 +68,7 @@ Reload tmux and press `prefix + I`.
 ### Manual
 
 ```bash
-git clone https://github.com/sandudorogan/tmux-pane-tree \
+git clone https://github.com/evilsquid888/tmux-pane-tree \
   ~/.config/tmux/plugins/tmux-pane-tree
 ```
 
