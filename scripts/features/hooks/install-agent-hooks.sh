@@ -12,6 +12,15 @@ KIRO_AGENT="${KIRO_AGENT:-$HOME/.kiro/agents/tmux-pane-tree.json}"
 KIRO_CLI_SETTINGS="${KIRO_CLI_SETTINGS:-$HOME/.kiro/settings/cli.json}"
 TIMESTAMP="${TIMESTAMP:-$(date +%Y%m%d%H%M%S)}"
 
+prune_backups() {
+  local base_path="$1"
+  ls -1t "${base_path}.bak-tmux-sidebar-"* 2>/dev/null \
+    | tail -n +4 \
+    | while IFS= read -r old_backup; do
+        rm -f "$old_backup"
+      done
+}
+
 mkdir -p \
   "$(dirname "$CLAUDE_SETTINGS")" \
   "$(dirname "$CODEX_CONFIG")" \
@@ -23,6 +32,7 @@ mkdir -p \
 
 if [ -f "$CLAUDE_SETTINGS" ]; then
   cp "$CLAUDE_SETTINGS" "$CLAUDE_SETTINGS.bak-tmux-sidebar-$TIMESTAMP"
+  prune_backups "$CLAUDE_SETTINGS"
 else
   printf '{}\n' > "$CLAUDE_SETTINGS"
 fi
@@ -82,6 +92,7 @@ END_CLAUDE
 
 if [ -f "$CODEX_CONFIG" ]; then
   cp "$CODEX_CONFIG" "$CODEX_CONFIG.bak-tmux-sidebar-$TIMESTAMP"
+  prune_backups "$CODEX_CONFIG"
 else
   : > "$CODEX_CONFIG"
 fi
@@ -104,6 +115,7 @@ END_CODEX
 
 if [ -f "$CURSOR_HOOKS" ]; then
   cp "$CURSOR_HOOKS" "$CURSOR_HOOKS.bak-tmux-sidebar-$TIMESTAMP"
+  prune_backups "$CURSOR_HOOKS"
 else
   printf '{\n  "version": 1,\n  "hooks": {}\n}\n' > "$CURSOR_HOOKS"
 fi
@@ -156,6 +168,7 @@ END_CURSOR
 
 if [ -f "$OPENCODE_PLUGIN" ]; then
   cp "$OPENCODE_PLUGIN" "$OPENCODE_PLUGIN.bak-tmux-sidebar-$TIMESTAMP"
+  prune_backups "$OPENCODE_PLUGIN"
 fi
 
 OPENCODE_PLUGIN="$OPENCODE_PLUGIN" PLUGIN_DST="$PLUGIN_DST" python3 - <<'END_OPENCODE'

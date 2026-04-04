@@ -82,17 +82,17 @@ elif [ -f "$state_file" ]; then
 fi
 
 tmp_file="$(mktemp "$state_dir/.pane-state.XXXXXX")"
-printf '{' > "$tmp_file"
-printf '"pane_id":"%s",' "$(json_escape "$pane_id")" >> "$tmp_file"
-printf '"session_name":"%s",' "$(json_escape "$session_name")" >> "$tmp_file"
-printf '"window_id":"%s",' "$(json_escape "$window_id")" >> "$tmp_file"
-printf '"window_name":"%s",' "$(json_escape "$window_name")" >> "$tmp_file"
-printf '"pane_title":"%s",' "$(json_escape "$pane_title")" >> "$tmp_file"
-printf '"pane_current_command":"%s",' "$(json_escape "$pane_current_command")" >> "$tmp_file"
-printf '"app":"%s",' "$(json_escape "$app")" >> "$tmp_file"
-printf '"status":"%s",' "$(json_escape "$status")" >> "$tmp_file"
-printf '"message":"%s",' "$(json_escape "$message")" >> "$tmp_file"
-printf '"updated_at":%s' "$updated_at" >> "$tmp_file"
-printf '}\n' >> "$tmp_file"
+trap 'rm -f "$tmp_file"' EXIT
+printf '{"pane_id":"%s","session_name":"%s","window_id":"%s","window_name":"%s","pane_title":"%s","pane_current_command":"%s","app":"%s","status":"%s","message":"%s","updated_at":%s}\n' \
+  "$(json_escape "$pane_id")" \
+  "$(json_escape "$session_name")" \
+  "$(json_escape "$window_id")" \
+  "$(json_escape "$window_name")" \
+  "$(json_escape "$pane_title")" \
+  "$(json_escape "$pane_current_command")" \
+  "$(json_escape "$app")" \
+  "$(json_escape "$status")" \
+  "$(json_escape "$message")" \
+  "$updated_at" > "$tmp_file"
 mv "$tmp_file" "$state_file"
 signal_sidebar_refresh
