@@ -23,9 +23,12 @@ if [ -n "$pane_id" ]; then
       clear_terminal_pane_state "$state_file" || true
     elif printf '%s\n' "$pane_title" | grep -qE '(: (done|needs-input|error))\s*$'; then
       tmp_file="$(mktemp "$state_dir/.pane-state.XXXXXX")"
-      printf '{"pane_id":"%s","app":"claude","status":"idle","updated_at":%d}\n' \
-        "$pane_id" "$(date +%s)" > "$tmp_file"
-      mv "$tmp_file" "$state_file"
+      if printf '{"pane_id":"%s","app":"claude","status":"idle","updated_at":%d}\n' \
+        "$pane_id" "$(date +%s)" > "$tmp_file"; then
+        mv "$tmp_file" "$state_file"
+      else
+        rm -f "$tmp_file"
+      fi
       signal_sidebar_refresh
     fi
   fi

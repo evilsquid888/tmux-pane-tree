@@ -198,8 +198,12 @@ clear_terminal_pane_state() {
     needs-input|done)
       state_dir="$(dirname "$state_file")"
       tmp_file="$(mktemp "$state_dir/.pane-state.XXXXXX")"
-      sed 's/"status":"[^"]*"/"status":"idle"/' "$state_file" > "$tmp_file"
-      mv "$tmp_file" "$state_file"
+      if sed 's/"status":"[^"]*"/"status":"idle"/' "$state_file" > "$tmp_file"; then
+        mv "$tmp_file" "$state_file"
+      else
+        rm -f "$tmp_file"
+        return 1
+      fi
       signal_sidebar_refresh
       return 0
       ;;
@@ -352,7 +356,14 @@ signal_sidebar_refresh() {
   for pid_file in "$state_dir"/sidebar-*.pid; do
     [ -e "$pid_file" ] || continue
     pid="$(cat "$pid_file" 2>/dev/null || true)"
-    [ -n "$pid" ] || continue
+    if [ -z "$pid" ] || ! [[ "$pid" =~ ^[0-9]+$ ]]; then
+      rm -f "$pid_file"
+      continue
+    fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$pid_file"
+      continue
+    fi
     kill -USR1 "$pid" 2>/dev/null || true
   done
 }
