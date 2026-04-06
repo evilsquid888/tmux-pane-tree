@@ -98,13 +98,23 @@ json_escape() {
 json_get_string() {
   local path="$1"
   local key="$2"
-  sed -n "s/.*\"$key\":\"\\([^\"]*\\)\".*/\\1/p" "$path"
+  python3 -c 'import json,sys
+try:
+  v=json.load(open(sys.argv[1])).get(sys.argv[2],"")
+  print(v if isinstance(v,str) else "")
+except Exception:
+  pass' "$path" "$key"
 }
 
 json_get_number() {
   local path="$1"
   local key="$2"
-  sed -n "s/.*\"$key\":\\([0-9][0-9]*\\).*/\\1/p" "$path"
+  python3 -c 'import json,sys
+try:
+  v=json.load(open(sys.argv[1])).get(sys.argv[2],"")
+  print(v if isinstance(v,(int,float)) else "")
+except Exception:
+  pass' "$path" "$key"
 }
 
 pane_exists() {
