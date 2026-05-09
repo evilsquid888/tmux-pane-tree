@@ -34,7 +34,11 @@ for line in text.splitlines(keepends=True):
     if not stripped:
         lines.append(line)
         continue
-    if "tmux-pane-tree.tmux" in stripped and "source-file" in stripped:
+    if "tmux-pane-tree.tmux" in stripped and (
+        "source-file" in stripped
+        or "run-shell" in stripped
+        or "if-shell" in stripped
+    ):
         continue
     if "source-file" in stripped and "sidebar.tmux" in stripped and (
         "tmux-sidebar" in line
@@ -82,7 +86,8 @@ tpm_line = "run '~/.config/tmux/plugins/tpm/tpm'"
 if tpm_line in text:
     text = text.replace(tpm_line, f"{tpm_line}\n{source_line}\n", 1)
 else:
-    text = text.rstrip() + ("\n" if text and not text.endswith("\n") else "") + source_line + "\n"
+    stripped_text = text.rstrip()
+    text = stripped_text + ("\n" if stripped_text else "") + source_line + "\n"
 
 tmux_conf.write_text(text)
 PY
