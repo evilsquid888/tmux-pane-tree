@@ -128,6 +128,17 @@ fake_tmux_no_sidebar() {
   rm -f "$TEST_TMUX_DATA_DIR/next_sidebar_pane_id.txt"
   rm -f "$TEST_TMUX_DATA_DIR/fail_allow_set_title.txt"
   rm -f "$TEST_TMUX_DATA_DIR/split_window_pane_title.txt"
+  rm -f "$TEST_TMUX_DATA_DIR/clients.txt"
+}
+
+fake_tmux_register_client() {
+  local session_name="$1"
+  local control_mode="${2:-0}"
+  printf '%s|%s\n' "$session_name" "$control_mode" >> "$TEST_TMUX_DATA_DIR/clients.txt"
+}
+
+fake_tmux_clear_clients() {
+  : > "$TEST_TMUX_DATA_DIR/clients.txt"
 }
 
 fake_tmux_sidebar_count() {
@@ -927,6 +938,36 @@ PY
     else
       printf '%s|%s\n' "$hook_name" "$hook_command" > "$hook_file"
     fi
+    ;;
+  list-clients)
+    target=""
+    format=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -t) target="$2"; shift 2 ;;
+        -F) format="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    clients_file="$data_dir/clients.txt"
+    [ -f "$clients_file" ] || exit 0
+    while IFS='|' read -r client_session client_control; do
+      [ -n "$client_session" ] || continue
+      if [ -n "$target" ] && [ "$client_session" != "$target" ]; then
+        continue
+      fi
+      case "$format" in
+        '#{client_control_mode}')
+          printf '%s\n' "${client_control:-0}"
+          ;;
+        '')
+          printf '%s\n' "$client_session"
+          ;;
+        *)
+          printf '\n'
+          ;;
+      esac
+    done < "$clients_file"
     ;;
   unbind-key)
     printf 'unbind-key %s\n' "$*" >> "$data_dir/commands.log"

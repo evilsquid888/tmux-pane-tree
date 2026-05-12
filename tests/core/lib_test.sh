@@ -101,3 +101,15 @@ assert_eq "$output" "%90|@1"
 
 run_script scripts/core/lib.sh list_sidebar_panes
 assert_eq "$output" "%90|@1"
+
+# Smoke test for fake list-clients
+fake_tmux_no_sidebar
+fake_tmux_register_client "work" 1
+fake_tmux_register_client "play" 0
+output="$(tmux list-clients -t work -F '#{client_control_mode}')"
+assert_eq "$output" "1"
+output="$(tmux list-clients -t play -F '#{client_control_mode}')"
+assert_eq "$output" "0"
+output="$(tmux list-clients -t missing -F '#{client_control_mode}')"
+assert_eq "$output" ""
+
