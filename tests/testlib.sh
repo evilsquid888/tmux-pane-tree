@@ -209,13 +209,18 @@ case "$command_name" in
   display-message)
     format=""
     target=""
+    print_flag=0
     while [ "$#" -gt 0 ]; do
       case "$1" in
-        -p) shift ;;
+        -p) print_flag=1; shift ;;
         -t) target="$2"; shift 2 ;;
         *) format="$1"; shift ;;
       esac
     done
+    if [ "$print_flag" = "0" ]; then
+      printf 'display-message %s\n' "$format" >> "$data_dir/commands.log"
+      exit 0
+    fi
     if [ -z "$target" ] && [ "$format" = '#{pane_id}' ]; then
       cat "$data_dir/current_pane.txt"
       exit 0

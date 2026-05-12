@@ -7,6 +7,12 @@ SCRIPTS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)"
 ensure_script="$SCRIPT_DIR/ensure-sidebar-pane.sh"
 close_script="$SCRIPT_DIR/close-sidebar.sh"
 
+session_name="$(tmux display-message -p '#{session_name}' 2>/dev/null || true)"
+if [ -n "$session_name" ] && session_has_control_client "$session_name"; then
+  tmux display-message "tmux-sidebar: disabled while iTerm2 control-mode client is attached"
+  exit 0
+fi
+
 current_window="$(tmux display-message -p '#{window_id}' 2>/dev/null || true)"
 enabled="$(tmux show-options -gv @tmux_sidebar_enabled 2>/dev/null || printf '0\n')"
 sidebar_panes="$(list_sidebar_panes)"
