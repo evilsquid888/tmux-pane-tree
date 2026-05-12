@@ -125,3 +125,24 @@ assert_eq "$rc" "1"
 fake_tmux_no_sidebar
 if bash scripts/core/lib.sh session_has_control_client "" 2>/dev/null; then rc=0; else rc=$?; fi
 assert_eq "$rc" "1"
+
+# kill_sidebar_panes_in_session
+fake_tmux_no_sidebar
+fake_tmux_register_pane "%1" "work" "@1" "editor" "nvim"
+fake_tmux_register_pane "%90" "work" "@1" "Sidebar" "python3"
+fake_tmux_add_sidebar_pane "%90" "@1"
+
+bash scripts/core/lib.sh kill_sidebar_panes_in_session "work"
+
+assert_file_contains "$TEST_TMUX_DATA_DIR/commands.log" 'kill-pane -t %90'
+assert_file_contains "$TEST_TMUX_DATA_DIR/commands.log" 'set-option -g -u @tmux_sidebar_pane_w1'
+
+fake_tmux_no_sidebar
+fake_tmux_register_pane "%1" "work" "@1" "editor" "nvim"
+
+bash scripts/core/lib.sh kill_sidebar_panes_in_session "work"
+assert_file_not_contains "$TEST_TMUX_DATA_DIR/commands.log" 'kill-pane'
+
+fake_tmux_no_sidebar
+bash scripts/core/lib.sh kill_sidebar_panes_in_session ""
+assert_file_not_contains "$TEST_TMUX_DATA_DIR/commands.log" 'kill-pane'

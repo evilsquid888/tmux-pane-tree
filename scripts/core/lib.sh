@@ -501,6 +501,19 @@ session_has_control_client() {
     | grep -qx 1
 }
 
+kill_sidebar_panes_in_session() {
+  local session_name="$1"
+  [ -n "$session_name" ] || return 0
+  list_sidebar_panes_in_session "$session_name" \
+    | while IFS='|' read -r pane_id window_id; do
+        [ -n "$pane_id" ] || continue
+        tmux kill-pane -t "$pane_id" 2>/dev/null || true
+        [ -n "$window_id" ] || continue
+        restore_sidebar_window_snapshot_if_unchanged "$window_id"
+        clear_sidebar_window_state_options "$window_id"
+      done
+}
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   "$@"
 fi
