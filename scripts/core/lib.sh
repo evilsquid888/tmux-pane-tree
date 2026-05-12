@@ -494,6 +494,13 @@ signal_sidebar_refresh() {
   done
 }
 
+session_has_control_client() {
+  local session_name="$1"
+  [ -n "$session_name" ] || return 1
+  tmux list-clients -t "$session_name" -F '#{client_control_mode}' 2>/dev/null \
+    | grep -qx 1
+}
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   "$@"
 fi
