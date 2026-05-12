@@ -6,12 +6,19 @@ if [ "${TMUX_SIDEBAR_TRACE:-0}" = "1" ]; then
   set -x
 fi
 
-enabled="$(tmux show-options -gv @tmux_sidebar_enabled 2>/dev/null || printf '0\n')"
-[ "$enabled" = "1" ] || exit 0
-
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
 SCRIPTS_DIR="$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)"
 . "$SCRIPTS_DIR/core/lib.sh"
+
+session_name="$(tmux display-message -p '#{session_name}' 2>/dev/null || true)"
+if [ -n "$session_name" ] && session_has_control_client "$session_name"; then
+  kill_sidebar_panes_in_session "$session_name"
+  tmux set-option -g @tmux_sidebar_enabled 0 2>/dev/null || true
+  exit 0
+fi
+
+enabled="$(tmux show-options -gv @tmux_sidebar_enabled 2>/dev/null || printf '0\n')"
+[ "$enabled" = "1" ] || exit 0
 target_pane="${1:-}"
 current_window="${2:-}"
 
